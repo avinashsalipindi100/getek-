@@ -1,0 +1,7 @@
+@tailwind base; @tailwind components; @tailwind utilities;
+body { @apply bg-[#f1f5f9] text-slate-800 font-sans antialiased; font-variant-numeric: tabular-nums; }
+.inp { @apply w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30; }
+.lbl { @apply mb-1 block text-xs font-medium text-slate-600; }
+.th { @apply px-3 py-2 text-left text-xs font-semibold text-slate-600 whitespace-nowrap; }
+.td { @apply px-3 py-2 text-sm whitespace-nowrap; }
+@media print { body * { visibility: hidden; } .print-area, .print-area * { visibility: visible; } .print-area { position: absolute; left: 0; top: 0; width: 100%; } }
