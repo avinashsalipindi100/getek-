@@ -29,7 +29,7 @@ export function Login({ recovery, onDone }: { recovery: boolean; onDone: () => v
         if (f.pw.length < 8) return toast('Use at least 8 characters', 'err')
         const { error } = await supabase.auth.updateUser({ password: f.pw }); if (error) return toast(error.message, 'err'); toast('Password updated'); onDone()
       } else if (signup) {
-        const { data, error } = await supabase.functions.invoke('manager-signup', { body: { full_name: f.name, email: f.email.trim(), password: f.pw, code: f.code } })
+        const { data, error } = await supabase.functions.invoke('rapid-function', { body: { full_name: f.name, email: f.email.trim(), password: f.pw, code: f.code } })
         if (error || data?.error) return toast(data?.error ?? error?.message ?? 'Sign-up failed', 'err')
         toast('Manager account created'); await signIn()
       } else await signIn()
