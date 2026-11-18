@@ -203,7 +203,7 @@ export function Engineers() {
   const load = useCallback(async () => { const { data } = await supabase.from('profiles').select('*').order('full_name'); setRows((data ?? []) as Profile[]) }, [])
   useEffect(() => { load() }, [load])
   const call = async (body: any, ok: string) => {
-    setBusy(true); const { data, error } = await supabase.functions.invoke('create-engineer', { body }); setBusy(false)
+    setBusy(true); const { data, error } = await supabase.functions.invoke('engineer', { body }); setBusy(false)
     if (error || data?.error) { toast(data?.error ?? error?.message ?? 'Request failed', 'err'); return false }
     toast(ok); return true
   }
