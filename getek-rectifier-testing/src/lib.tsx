@@ -10,7 +10,7 @@ export const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.m
 
 export type TestStatus = 'not_started' | 'in_progress' | 'completed' | 'failed'
 export interface Profile { id: string; full_name: string; employee_id: string | null; email: string; role: 'admin' | 'engineer'; department: string | null; is_active: boolean; created_at: string }
-export interface Problem { id: string; record_id: string; reported_by: string; category: string; description: string; severity: 'low' | 'medium' | 'high' | 'critical'; image_url: string | null; problem_status: 'open' | 'under_investigation' | 'resolved'; assigned_to: string | null; resolution_remarks: string | null; resolved_at: string | null; created_at: string }
+export interface Problem { id: string; record_id: string; reported_by: string; category: string; other_category?: string | null; description: string; severity: 'low' | 'medium' | 'high' | 'critical'; image_url: string | null; problem_status: 'open' | 'under_investigation' | 'resolved'; assigned_to: string | null; resolution_remarks: string | null; resolved_at: string | null; created_at: string }
 export interface RecordRow {
   id: string; engineer_id: string; testing_date: string; fo_number: string; series_number: string; rectifier_rating: string; quantity: number; ordered_quantity: number | null
   no_load_status: TestStatus; short_circuit_status: TestStatus; load_test_status: TestStatus; remarks: string | null
@@ -23,8 +23,8 @@ export interface RecordRow {
 
 export const TEST_STATUSES: { v: TestStatus; l: string }[] = [
   { v: 'not_started', l: 'Not Started' }, { v: 'in_progress', l: 'In Progress' }, { v: 'completed', l: 'Completed' }, { v: 'failed', l: 'Failed' }]
-export const CATEGORIES = ['Voltage Problem', 'Current Problem', 'Rectifier Not Starting', 'Cooling Fan Problem', 'Control Card Problem', 'PCB Problem', 'Transformer Problem', 'Diode / SCR Problem', 'Output Fluctuation', 'Overheating', 'Other']
-export const SEVERITIES = ['low', 'medium', 'high', 'critical']
+export const CATEGORIES = ['Tuning Problem', 'IGBT Problem', 'Driver Card Problem', 'Water Leakage', 'Rectifier Not Starting', 'Cooling Fan Problem', 'Control Card Problem', 'PCB Problem', 'Transformer Problem', 'Diode Problem', 'SCR Problem', 'Output Fluctuation', 'Overheating', 'Other']
+export const catLabel = (p: { category: string; other_category?: string | null }) => (p.category === 'Other' && p.other_category ? `Other: ${p.other_category}` : p.category)
 export const PROBLEM_STATUSES = [{ v: 'open', l: 'Open' }, { v: 'under_investigation', l: 'Under Investigation' }, { v: 'resolved', l: 'Resolved' }]
 
 export const label = (s: string) => s.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase())
