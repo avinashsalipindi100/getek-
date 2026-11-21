@@ -2,13 +2,17 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Cpu, Download, Factory, Plus, Printer, ShieldCheck, Trash2, UserCog, Wrench } from 'lucide-react'
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { useAuth, supabase, toast, Btn, Card, Spinner, Stat, Badge, Table, Modal, Logo, SignedImg, Hero, TEST_STATUSES, CATEGORIES, SEVERITIES, PROBLEM_STATUSES, label, iso, today, addDays, monthRange, weekStart, finalStatus, useRealtime, RECORD_SELECT, stats, toCSV, toPDF, toXLSX } from './lib'
+import { useAuth, supabase, toast, Btn, Card, Spinner, Stat, Badge, Table, Modal, Logo, SignedImg, Hero, TEST_STATUSES, CATEGORIES, SEVERITIES, PROBLEM_STATUSES, label, iso, today, addDays, monthRange, weekStart, finalStatus, STAGES, hhmm, diffMins, stageMins, testMinutes, busyMinutes, fmtDur, nowHHMM, SHIFT_MINUTES, useRealtime, RECORD_SELECT, stats, toCSV, toPDF, toXLSX } from './lib'
 import type { Profile, Problem, RecordRow, Tbl } from './lib'
 
 
 // ===== Login =====
 
 type Role = 'admin' | 'engineer'
+// Edge Function URL names, exactly as shown in Supabase > Edge Functions (the last part of each function's URL)
+const FN_MANAGER_SIGNUP = 'rapid-function'
+const FN_CREATE_ENGINEER = 'engineer'
+
 export function Login({ recovery, onDone }: { recovery: boolean; onDone: () => void }) {
   const [role, setRole] = useState<Role>('engineer'); const [signup, setSignup] = useState(false)
   const [f, setF] = useState({ name: '', email: '', pw: '', code: '' }); const [busy, setBusy] = useState(false)
@@ -29,7 +33,7 @@ export function Login({ recovery, onDone }: { recovery: boolean; onDone: () => v
         if (f.pw.length < 8) return toast('Use at least 8 characters', 'err')
         const { error } = await supabase.auth.updateUser({ password: f.pw }); if (error) return toast(error.message, 'err'); toast('Password updated'); onDone()
       } else if (signup) {
-        const { data, error } = await supabase.functions.invoke('rapid-function', { body: { full_name: f.name, email: f.email.trim(), password: f.pw, code: f.code } })
+        const { data, error } = await supabase.functions.invoke(FN_MANAGER_SIGNUP, { body: { full_name: f.name, email: f.email.trim(), password: f.pw, code: f.code } })
         if (error || data?.error) return toast(data?.error ?? error?.message ?? 'Sign-up failed', 'err')
         toast('Manager account created'); await signIn()
       } else await signIn()
@@ -82,7 +86,7 @@ export function EngineerDashboard() {
 
   const t = rows.filter(r => r.testing_date === today())
   const sum = (a: RecordRow[]) => a.reduce((s, r) => s + r.quantity, 0)
-  const done = (k: 'no_load_status' | 'short_circuit_status' | 'load_test_status') => t.filter(r => r[k] === 'completed').length
+  const done = (k: 'no_load_status' | 'short_circuit_status' | 'load_test_status' | 'functional_status') => t.filter(r => r[k] === 'completed').length
   const problems = rows.flatMap(r => (r.technical_problems ?? []).map(p => ({ ...p, rec: r })))
   const pending = rows.filter(r => ['Pending', 'In Progress'].includes(finalStatus(r))).length
   const monthQty = sum(rows.filter(r => r.testing_date >= monthRange(today())[0]))
@@ -98,6 +102,9 @@ export function EngineerDashboard() {
         <Stat label="No load tests completed" value={done('no_load_status')} tone="green" />
         <Stat label="Short circuit tests completed" value={done('short_circuit_status')} tone="green" />
         <Stat label="Load tests completed" value={done('load_test_status')} tone="green" />
+        <Stat label="Functional checks completed" value={done('functional_status')} tone="green" />
+        <Stat label="Testing time today" value={fmtDur(busyMinutes(t))} />
+        <Stat label="8-hour shift used" value={Math.round(busyMinutes(t) / SHIFT_MINUTES * 100) + '%'} tone="amber" />
         <Stat label="Rectifiers with problems" value={t.filter(r => (r.technical_problems ?? []).length).length} tone="red" />
         <Stat label="Pending testing activities" value={pending} tone="amber" /></div>
       <div className="grid gap-4 lg:grid-cols-2">
@@ -105,9 +112,9 @@ export function EngineerDashboard() {
         <Card title="Reported technical problems">
           <Table head={['Category', 'FO', 'Severity', 'Status']} empty={!problems.length}>{problems.slice(0, 6).map(p => <tr key={p.id}><td className="td">{p.category}</td><td className="td">{p.rec.fo_number}</td><td className="td"><Badge v={p.severity} /></td><td className="td"><Badge v={p.problem_status} /></td></tr>)}</Table></Card></div>
       <Card title="Today's submitted work and recent records">
-        <Table head={['Date', 'FO', 'Series', 'Rating', 'Qty', 'No load', 'Short circuit', 'Load', 'Status', 'Saved as', '']} empty={!rows.length}>
+        <Table head={['Date', 'FO', 'Series', 'Rating', 'Qty', 'No load', 'Short circuit', 'Load', 'Functional', 'Test time', 'Status', 'Saved as', '']} empty={!rows.length}>
           {rows.slice(0, 12).map(r => <tr key={r.id}><td className="td">{r.testing_date}</td><td className="td">{r.fo_number}</td><td className="td">{r.series_number}</td><td className="td">{r.rectifier_rating}</td><td className="td">{r.quantity}</td>
-            <td className="td"><Badge v={r.no_load_status} /></td><td className="td"><Badge v={r.short_circuit_status} /></td><td className="td"><Badge v={r.load_test_status} /></td>
+            <td className="td"><Badge v={r.no_load_status} /></td><td className="td"><Badge v={r.short_circuit_status} /></td><td className="td"><Badge v={r.load_test_status} /></td><td className="td"><Badge v={r.functional_status} /></td><td className="td">{fmtDur(testMinutes(r))}</td>
             <td className="td"><Badge v={finalStatus(r)} /></td><td className="td"><Badge v={r.submission_status} /></td><td className="td"><Link className="text-brand-600 hover:underline" to={`/report/${r.id}`}>Open</Link></td></tr>)}</Table></Card>
     </div>
   )
@@ -123,7 +130,7 @@ export function AdminDashboard() {
       supabase.from('profiles').select('*').eq('role', 'engineer').order('full_name'),
       supabase.from('rectifier_records').select(RECORD_SELECT).gte('testing_date', addDays(today(), -13)),
       supabase.from('technical_problems').select('id', { count: 'exact', head: true }).neq('problem_status', 'resolved'),
-      supabase.from('rectifier_records').select('fo_number, ordered_quantity, quantity, no_load_status, short_circuit_status, load_test_status, profiles:engineer_id(full_name)').eq('submission_status', 'submitted').limit(5000)])
+      supabase.from('rectifier_records').select('fo_number, ordered_quantity, quantity, no_load_status, short_circuit_status, load_test_status, functional_status, profiles:engineer_id(full_name)').eq('submission_status', 'submitted').limit(5000)])
     setEngs((p.data ?? []) as Profile[]); setRows((r.data ?? []) as RecordRow[]); setOpen(o.count ?? 0); setFo(a.data ?? [])
   }, [])
   useEffect(() => { load() }, [load]); useRealtime(['rectifier_records', 'technical_problems', 'profiles'], load)
@@ -132,7 +139,7 @@ export function AdminDashboard() {
   const chart = Array.from({ length: 14 }, (_, i) => { const d = addDays(today(), i - 13); const x = stats(rows.filter(r => r.testing_date === d)); return { day: d.slice(5), Quantity: x.qty, Failed: x.failed } })
   const fm: Record<string, { ordered: number; done: number; failed: number; by: Set<string> }> = {}
   fo.forEach((r: any) => { const m = (fm[r.fo_number] ??= { ordered: 0, done: 0, failed: 0, by: new Set() }); m.ordered = Math.max(m.ordered, r.ordered_quantity ?? 0); m.by.add(r.profiles?.full_name)
-    const st = [r.no_load_status, r.short_circuit_status, r.load_test_status]; if (st.includes('failed')) m.failed += r.quantity; else if (st.every(x => x === 'completed')) m.done += r.quantity })
+    const st = [r.no_load_status, r.short_circuit_status, r.load_test_status, r.functional_status]; if (st.includes('failed')) m.failed += r.quantity; else if (st.every(x => x === 'completed')) m.done += r.quantity })
   const foRows = Object.entries(fm).sort((a, b) => (b[1].ordered - b[1].done) - (a[1].ordered - a[1].done))
   const pie = ['Completed', 'Pending', 'Failed'].map(n => ({ name: n, value: rows.filter(r => finalStatus(r) === n).length }))
   const pc: Record<string, string> = { Completed: '#059669', Pending: '#f2a900', Failed: '#dc2626' }
@@ -145,7 +152,7 @@ export function AdminDashboard() {
         <Stat label="Rectifiers tested today" value={s.records} />
         <Stat label="Order quantity today" value={s.qty} />
         <Stat label="FO (orders) processed" value={s.fos} />
-        <Stat label="Completed test activities" value={s.nl + s.sc + s.lt} tone="green" />
+        <Stat label="Completed test activities" value={s.nl + s.sc + s.lt + s.fc} tone="green" />
         <Stat label="Failed test activities" value={s.failed} tone="red" />
         <Stat label="Problems reported today" value={s.problems} tone="amber" />
         <Stat label="Pending problem resolution" value={open} tone="red" /></div>
@@ -154,15 +161,15 @@ export function AdminDashboard() {
         return <tr key={k}><td className="td font-medium">{k}</td><td className="td">{m.ordered || 'Not set'}</td><td className="td">{m.done}</td><td className="td">{m.failed}</td><td className="td w-40"><div className="h-2 rounded bg-slate-200"><div className={`h-2 rounded ${pct >= 100 ? 'bg-emerald-500' : 'bg-amber-500'}`} style={{ width: pct + '%' }} /></div><span className="text-xs text-slate-500">{m.ordered ? pct + '%' : ''}</span></td><td className="td">{[...m.by].join(', ')}</td></tr> })}</Table></div></Card></div>
       <Card title="Quantity and failures, last 14 days"><div className="h-60"><ResponsiveContainer><BarChart data={chart}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="day" fontSize={11} /><YAxis allowDecimals={false} fontSize={11} /><Tooltip /><Legend /><Bar dataKey="Quantity" fill="#1f5f99" radius={[3, 3, 0, 0]} /><Bar dataKey="Failed" fill="#dc2626" radius={[3, 3, 0, 0]} /></BarChart></ResponsiveContainer></div></Card>
       <Card title="Engineer performance today" className="!p-0">
-        <Table head={['Engineer name', 'FO numbers', 'Rectifiers tested', 'No load', 'Short circuit', 'Load test', 'Problems', 'Status']} empty={!engs.length}>
-          {engs.map(e => { const x = stats(t.filter(r => r.engineer_id === e.id)); return <tr key={e.id}>
-            <td className="td"><Link className="font-medium text-brand-600 hover:underline" to={`/engineers/${e.id}`}>{e.full_name}</Link></td><td className="td">{x.fos}</td><td className="td">{x.records}</td><td className="td">{x.nl}</td><td className="td">{x.sc}</td><td className="td">{x.lt}</td><td className="td">{x.problems}</td>
+        <Table head={['Engineer name', 'FO numbers', 'Rectifiers tested', 'No load', 'Short circuit', 'Load test', 'Functional', 'Problems', 'Testing time today', '8h shift used', 'Status']} empty={!engs.length}>
+          {engs.map(e => { const er = t.filter(r => r.engineer_id === e.id); const x = stats(er); const bm = busyMinutes(er); return <tr key={e.id}>
+            <td className="td"><Link className="font-medium text-brand-600 hover:underline" to={`/engineers/${e.id}`}>{e.full_name}</Link></td><td className="td">{x.fos}</td><td className="td">{x.records}</td><td className="td">{x.nl}</td><td className="td">{x.sc}</td><td className="td">{x.lt}</td><td className="td">{x.fc}</td><td className="td">{x.problems}</td><td className="td">{fmtDur(bm)}</td><td className="td w-36"><div className="h-2 rounded bg-slate-200"><div className={`h-2 rounded ${bm >= SHIFT_MINUTES ? 'bg-emerald-500' : 'bg-amber-500'}`} style={{ width: Math.min(100, bm / SHIFT_MINUTES * 100) + '%' }} /></div><span className="text-xs text-slate-500">{Math.round(bm / SHIFT_MINUTES * 100)}%</span></td>
             <td className="td">{!e.is_active ? <Badge v="Inactive" /> : x.records ? <Badge v={t.filter(r => r.engineer_id === e.id).every(r => finalStatus(r) === 'Completed') ? 'Completed' : 'In progress'} /> : <Badge v="Pending" />}</td></tr> })}</Table></Card>
       <Card title="Daily work reports from all engineers" className="!p-0" right={<input type="date" className="inp !w-auto" value={day} max={today()} min={addDays(today(), -13)} onChange={e => setDay(e.target.value)} />}>
-        <Table head={['Engineer', 'FO (order no.)', 'Series no.', 'Rating', 'Order qty', 'No load', 'Short circuit', 'Load', 'Problems', 'Saved as']} empty={!rows.some(r => r.testing_date === day)}>
+        <Table head={['Engineer', 'FO (order no.)', 'Series no.', 'Rating', 'Order qty', 'No load', 'Short circuit', 'Load', 'Functional', 'Test time', 'Problems', 'Saved as']} empty={!rows.some(r => r.testing_date === day)}>
           {rows.filter(r => r.testing_date === day).sort((a, b) => (a.profiles?.full_name ?? '').localeCompare(b.profiles?.full_name ?? '')).map(r => <tr key={r.id}>
             <td className="td"><Link className="font-medium text-brand-600 hover:underline" to={`/engineers/${r.engineer_id}`}>{r.profiles?.full_name}</Link></td><td className="td">{r.fo_number}</td><td className="td">{r.series_number}</td><td className="td">{r.rectifier_rating}</td><td className="td font-semibold">{r.quantity}</td>
-            <td className="td"><Badge v={r.no_load_status} /></td><td className="td"><Badge v={r.short_circuit_status} /></td><td className="td"><Badge v={r.load_test_status} /></td><td className="td">{r.technical_problems?.length || 'None'}</td><td className="td"><Badge v={r.submission_status} /></td></tr>)}</Table></Card>
+            <td className="td"><Badge v={r.no_load_status} /></td><td className="td"><Badge v={r.short_circuit_status} /></td><td className="td"><Badge v={r.load_test_status} /></td><td className="td"><Badge v={r.functional_status} /></td><td className="td">{fmtDur(testMinutes(r))}</td><td className="td">{r.technical_problems?.length || 'None'}</td><td className="td"><Badge v={r.submission_status} /></td></tr>)}</Table></Card>
     </div>
   )
 }
@@ -203,7 +210,7 @@ export function Engineers() {
   const load = useCallback(async () => { const { data } = await supabase.from('profiles').select('*').order('full_name'); setRows((data ?? []) as Profile[]) }, [])
   useEffect(() => { load() }, [load])
   const call = async (body: any, ok: string) => {
-    setBusy(true); const { data, error } = await supabase.functions.invoke('engineer', { body }); setBusy(false)
+    setBusy(true); const { data, error } = await supabase.functions.invoke(FN_CREATE_ENGINEER, { body }); setBusy(false)
     if (error || data?.error) { toast(data?.error ?? error?.message ?? 'Request failed', 'err'); return false }
     toast(ok); return true
   }
@@ -243,7 +250,9 @@ export function Engineers() {
 // ===== ReportForm =====
 
 type P = Partial<Problem> & { file?: File | null }
-const blank = { testing_date: today(), fo_number: '', series_number: '', rectifier_rating: '', quantity: 1, ordered_quantity: '', no_load_status: 'not_started', short_circuit_status: 'not_started', load_test_status: 'not_started', remarks: '' }
+const blank: any = { testing_date: today(), fo_number: '', series_number: '', rectifier_rating: '', quantity: 1, ordered_quantity: '', no_load_status: 'not_started', short_circuit_status: 'not_started', load_test_status: 'not_started', functional_status: 'not_started', remarks: '',
+  ...Object.fromEntries(STAGES.flatMap(s => [[`${s.key}_start`, ''], [`${s.key}_end`, ''], [`${s.key}_witness`, '']])) }
+const normTimes = (r: any) => { const o = { ...r }; STAGES.forEach(s => { o[`${s.key}_start`] = hhmm(r[`${s.key}_start`]); o[`${s.key}_end`] = hhmm(r[`${s.key}_end`]); o[`${s.key}_witness`] = r[`${s.key}_witness`] ?? '' }); return o }
 const newProblem = (): P => ({ category: CATEGORIES[0], description: '', severity: 'low', problem_status: 'open', file: null })
 
 export function ReportForm() {
@@ -259,7 +268,7 @@ export function ReportForm() {
     supabase.from('rectifier_records').select('*, technical_problems(*)').eq('id', id).single().then(({ data, error }) => {
       if (error || !data) { toast('Record not found', 'err'); return nav('/') }
       const { technical_problems, ...rec } = data as any
-      setF(rec); setProblems(technical_problems); setHasProblem(technical_problems.length > 0); setReady(true)
+      setF(normTimes(rec)); setProblems(technical_problems); setHasProblem(technical_problems.length > 0); setReady(true)
       setLocked(rec.engineer_id !== profile.id && profile.role !== 'admin')
     })
   }, [id])
@@ -275,10 +284,17 @@ export function ReportForm() {
   const save = async (status: 'draft' | 'submitted') => {
     if (!f.fo_number.trim() || !f.series_number.trim() || !f.rectifier_rating.trim() || !(f.quantity > 0)) return toast('FO number, series number, rating and a quantity above 0 are required', 'err')
     if (hasProblem && problems.some(p => !p.description?.trim())) return toast('Describe every reported problem', 'err')
+    if (status === 'submitted') for (const st of STAGES) {
+      const s = f[`${st.key}_status`], a = f[`${st.key}_start`], b = f[`${st.key}_end`], w = (f[`${st.key}_witness`] || '').trim()
+      if (s !== 'not_started' && !a) return toast(`${st.label}: enter the start time`, 'err')
+      if ((s === 'completed' || s === 'failed') && !b) return toast(`${st.label}: enter the end time`, 'err')
+      if (a && b && b <= a) return toast(`${st.label}: end time must be after the start time`, 'err')
+      if ((s === 'completed' || s === 'failed') && !w) return toast(`${st.label}: enter the name of the in-charge / manager who verified this stage`, 'err')
+    }
     setBusy(true)
     try {
       const payload = { testing_date: f.testing_date, fo_number: f.fo_number.trim(), series_number: f.series_number.trim(), rectifier_rating: f.rectifier_rating.trim(), quantity: Number(f.quantity),
-        no_load_status: f.no_load_status, short_circuit_status: f.short_circuit_status, load_test_status: f.load_test_status, remarks: f.remarks || null, ordered_quantity: f.ordered_quantity ? Number(f.ordered_quantity) : null, submission_status: status }
+        ...Object.fromEntries(STAGES.flatMap(st => [[`${st.key}_status`, f[`${st.key}_status`]], [`${st.key}_start`, f[`${st.key}_start`] || null], [`${st.key}_end`, f[`${st.key}_end`] || null], [`${st.key}_witness`, (f[`${st.key}_witness`] || '').trim() || null]])), remarks: f.remarks || null, ordered_quantity: f.ordered_quantity ? Number(f.ordered_quantity) : null, submission_status: status }
       let rid = id
       if (id) { const { error } = await supabase.from('rectifier_records').update(payload).eq('id', id); if (error) throw error }
       else { const { data, error } = await supabase.from('rectifier_records').insert({ ...payload, engineer_id: profile.id }).select('id').single(); if (error) throw error; rid = data.id }
@@ -316,9 +332,16 @@ export function ReportForm() {
         <div><label className="lbl">Quantity tested in this entry *</label><input className="inp" type="number" min={1} value={f.quantity} onChange={e => set('quantity', e.target.value)} /></div>
         <div><label className="lbl">Order quantity (total ordered under this FO)</label><input className="inp" type="number" min={1} value={f.ordered_quantity ?? ''} onChange={e => set('ordered_quantity', e.target.value)} /></div>
         <div className="sm:col-span-2"><label className="lbl">Problems / observations (optional)</label><textarea className="inp" rows={2} value={f.remarks ?? ''} onChange={e => set('remarks', e.target.value)} /></div></div></Card>
-      <Card title="Testing status"><div className="grid gap-3 sm:grid-cols-3">
-        {([['no_load_status', 'No load test'], ['short_circuit_status', 'Short circuit test'], ['load_test_status', 'Load test']] as const).map(([k, l]) =>
-          <div key={k}><label className="lbl">{l}</label><select className="inp" value={f[k]} onChange={e => set(k, e.target.value)}>{TEST_STATUSES.map(s => <option key={s.v} value={s.v}>{s.l}</option>)}</select></div>)}</div></Card>
+      <Card title="Testing stages: status, timings and verification" right={<span className="text-sm font-semibold text-brand-900">Total test time: {fmtDur(STAGES.reduce((t, st) => t + diffMins(f[`${st.key}_start`], f[`${st.key}_end`]), 0))}</span>}>
+        <div className="space-y-3">{STAGES.map(st => { const k = st.key; return (
+          <div key={k} className="rounded-md border border-slate-200 p-3">
+            <div className="mb-2 flex items-center justify-between"><h4 className="text-sm font-semibold">{st.label}</h4><span className="text-xs text-slate-500">Duration: {fmtDur(diffMins(f[`${k}_start`], f[`${k}_end`]))}</span></div>
+            <div className="grid gap-3 sm:grid-cols-5">
+              <div><label className="lbl">Status</label><select className="inp" value={f[`${k}_status`]} onChange={e => set(`${k}_status`, e.target.value)}>{TEST_STATUSES.map(x => <option key={x.v} value={x.v}>{x.l}</option>)}</select></div>
+              <div><label className="lbl">Start time</label><input type="time" className="inp" value={f[`${k}_start`] ?? ''} onChange={e => set(`${k}_start`, e.target.value)} /><button type="button" className="mt-1 text-xs text-brand-600 hover:underline" onClick={() => set(`${k}_start`, nowHHMM())}>Set to now</button></div>
+              <div><label className="lbl">End time</label><input type="time" className="inp" value={f[`${k}_end`] ?? ''} onChange={e => set(`${k}_end`, e.target.value)} /><button type="button" className="mt-1 text-xs text-brand-600 hover:underline" onClick={() => set(`${k}_end`, nowHHMM())}>Set to now</button></div>
+              <div className="sm:col-span-2"><label className="lbl">Verified by (In-charge / Manager name)</label><input className="inp" placeholder="Name of person who witnessed this stage" value={f[`${k}_witness`] ?? ''} onChange={e => set(`${k}_witness`, e.target.value)} /></div></div></div>) })}</div>
+        <p className="mt-3 text-xs text-slate-500">Enter start and end time for every stage. When a stage is Completed or Failed, the in-charge / manager who verified it must be named.</p></Card>
       <Card title="Is there any problem identified during testing?">
         <div className="flex gap-6 text-sm">{[false, true].map(v => <label key={String(v)} className="flex items-center gap-2"><input type="radio" checked={hasProblem === v} onChange={() => { setHasProblem(v); if (v && !problems.length) setProblems([newProblem()]) }} />{v ? 'Yes' : 'No'}</label>)}</div>
         {hasProblem && <div className="mt-4 space-y-4">{problems.map((p, i) => (
@@ -358,7 +381,7 @@ export function Records({ fixedEngineer }: { fixedEngineer?: string }) {
     if (f.engineer) q = q.eq('engineer_id', f.engineer)
     if (f.fo) q = q.ilike('fo_number', `%${f.fo}%`); if (f.series) q = q.ilike('series_number', `%${f.series}%`)
     if (f.rating) q = q.eq('rectifier_rating', f.rating)
-    if (f.test) q = q.or(`no_load_status.eq.${f.test},short_circuit_status.eq.${f.test},load_test_status.eq.${f.test}`)
+    if (f.test) q = q.or(`no_load_status.eq.${f.test},short_circuit_status.eq.${f.test},load_test_status.eq.${f.test},functional_status.eq.${f.test}`)
     if (f.pstatus) q = q.eq('technical_problems.problem_status', f.pstatus)
     const [sc, sd] = sort.split(':')
     const { data, count, error } = await q.order(sc, { ascending: sd === 'asc' }).order('created_at', { ascending: false }).range(page * PAGE, page * PAGE + PAGE - 1)
@@ -386,15 +409,17 @@ export function Records({ fixedEngineer }: { fixedEngineer?: string }) {
         <div><label className="lbl">Any test status</label><select className="inp" value={f.test} onChange={e => set('test', e.target.value)}><option value="">All</option>{TEST_STATUSES.map(s => <option key={s.v} value={s.v}>{s.l}</option>)}</select></div>
         <div><label className="lbl">Problem status</label><select className="inp" value={f.pstatus} onChange={e => set('pstatus', e.target.value)}><option value="">All</option><option value="open">Open</option><option value="under_investigation">Under investigation</option><option value="resolved">Resolved</option></select></div><div><label className="lbl">Sort by</label><select className="inp" value={sort} onChange={e => { setSort(e.target.value); setPage(0) }}>{[['testing_date:desc', 'Date, newest'], ['testing_date:asc', 'Date, oldest'], ['fo_number:asc', 'FO number'], ['series_number:asc', 'Series number'], ['rectifier_rating:asc', 'Rating'], ['quantity:desc', 'Quantity, high to low']].map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></div></div></Card>
       <Card className="!p-0">{!rows ? <Spinner /> :
-        <Table head={['Date', 'Engineer', 'FO', 'Series', 'Rating', 'Qty', 'No load', 'Short circuit', 'Load', 'Problem', 'Final status', 'Actions']} empty={!rows.length}>
+        <Table head={['Date', 'Engineer', 'FO', 'Series', 'Rating', 'Qty', 'No load', 'Short circuit', 'Load', 'Functional', 'Test time', 'Problem', 'Final status', 'Actions']} empty={!rows.length}>
           {rows.map(r => <tr key={r.id}><td className="td">{r.testing_date}</td><td className="td">{r.profiles?.full_name}</td><td className="td">{r.fo_number}</td><td className="td">{r.series_number}</td><td className="td">{r.rectifier_rating}</td><td className="td">{r.quantity}</td>
-            <td className="td"><Badge v={r.no_load_status} /></td><td className="td"><Badge v={r.short_circuit_status} /></td><td className="td"><Badge v={r.load_test_status} /></td>
+            <td className="td"><Badge v={r.no_load_status} /></td><td className="td"><Badge v={r.short_circuit_status} /></td><td className="td"><Badge v={r.load_test_status} /></td><td className="td"><Badge v={r.functional_status} /></td><td className="td">{fmtDur(testMinutes(r))}</td>
             <td className="td">{r.technical_problems?.length ? <Badge v="open" /> : 'No'}</td><td className="td"><Badge v={r.submission_status === 'draft' ? 'draft' : finalStatus(r)} /></td>
             <td className="td space-x-3"><button className="text-brand-600 hover:underline" onClick={() => setOpen(r)}>View</button><Link className="text-brand-600 hover:underline" to={`/report/${r.id}`}>Edit</Link>{admin && <button className="text-red-600 hover:underline" onClick={() => del(r)}>Delete</button>}</td></tr>)}</Table>}
         <div className="flex items-center justify-between border-t p-3 text-sm"><span>{count} records</span><div className="flex items-center gap-2">
           <Btn kind="ghost" disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</Btn><span>Page {page + 1} of {pages}</span><Btn kind="ghost" disabled={page + 1 >= pages} onClick={() => setPage(page + 1)}>Next</Btn></div></div></Card>
       {open && <Modal title={`FO ${open.fo_number} / ${open.series_number}`} onClose={() => setOpen(null)}>
-        <dl className="grid grid-cols-2 gap-3 text-sm">{[['Date', open.testing_date], ['Engineer', open.profiles?.full_name], ['Rating', open.rectifier_rating], ['Quantity', open.quantity], ['No load', label(open.no_load_status)], ['Short circuit', label(open.short_circuit_status)], ['Load test', label(open.load_test_status)], ['Saved as', open.submission_status], ['Remarks', open.remarks || 'None'], ['Last updated', new Date(open.updated_at).toLocaleString()]].map(([k, v]) => <div key={String(k)}><dt className="text-xs text-slate-500">{k}</dt><dd>{v}</dd></div>)}</dl>
+        <dl className="grid grid-cols-2 gap-3 text-sm">{[['Date', open.testing_date], ['Engineer', open.profiles?.full_name], ['Rating', open.rectifier_rating], ['Quantity', open.quantity], ['Total test time', fmtDur(testMinutes(open))], ['Saved as', open.submission_status], ['Remarks', open.remarks || 'None'], ['Last updated', new Date(open.updated_at).toLocaleString()]].map(([k, v]) => <div key={String(k)}><dt className="text-xs text-slate-500">{k}</dt><dd>{v}</dd></div>)}</dl>
+        <h4 className="mb-2 mt-4 text-sm font-semibold">Testing stages</h4>
+        <Table head={['Stage', 'Status', 'Start', 'End', 'Duration', 'Verified by']}>{STAGES.map(st => <tr key={st.key}><td className="td">{st.label}</td><td className="td"><Badge v={open[`${st.key}_status`]} /></td><td className="td">{hhmm(open[`${st.key}_start`]) || '-'}</td><td className="td">{hhmm(open[`${st.key}_end`]) || '-'}</td><td className="td">{fmtDur(stageMins(open, st.key))}</td><td className="td">{open[`${st.key}_witness`] || '-'}</td></tr>)}</Table>
         <h4 className="mb-2 mt-4 text-sm font-semibold">Problems ({open.technical_problems?.length ?? 0})</h4>
         {open.technical_problems?.map(p => <div key={p.id} className="mb-2 flex items-start gap-3 rounded border p-2 text-sm"><div className="flex-1"><b>{p.category}</b> <Badge v={p.severity} /> <Badge v={p.problem_status} /><p className="text-slate-600">{p.description}</p></div>{p.image_url && <SignedImg path={p.image_url} />}</div>)}</Modal>}
     </div>
@@ -446,7 +471,7 @@ export function Problems() {
 
 // ===== Reports =====
 
-const TYPES = [['daily_one', 'Individual engineer daily report'], ['daily_all', 'All-engineer daily report'], ['weekly', 'Weekly productivity report'], ['monthly', 'Monthly productivity report'], ['rating', 'Rectifier rating-wise report'], ['problems', 'Problem analysis report']]
+const TYPES = [['daily_one', 'Individual engineer daily report'], ['daily_all', 'All-engineer daily report'], ['weekly', 'Weekly productivity report'], ['monthly', 'Monthly productivity report'], ['rating', 'Rectifier rating-wise report'], ['utilisation', 'Engineer 8-hour work utilisation (daily)'], ['problems', 'Problem analysis report']]
 
 export function Reports() {
   const [type, setType] = useState('daily_all'); const [date, setDate] = useState(today()); const [eng, setEng] = useState('')
@@ -456,7 +481,7 @@ export function Reports() {
   const build = async () => {
     if (type === 'daily_one' && !eng) return toast('Choose an engineer', 'err')
     setBusy(true)
-    const [from, to] = type.startsWith('daily') ? [date, date] : type === 'weekly' ? [weekStart(date), addDays(weekStart(date), 6)] : monthRange(date)
+    const [from, to] = type.startsWith('daily') || type === 'utilisation' ? [date, date] : type === 'weekly' ? [weekStart(date), addDays(weekStart(date), 6)] : monthRange(date)
     const period = from === to ? from : `${from} to ${to}`
     let q = supabase.from('rectifier_records').select(RECORD_SELECT).gte('testing_date', from).lte('testing_date', to).eq('submission_status', 'submitted').order('testing_date')
     if (type === 'daily_one') q = q.eq('engineer_id', eng)
@@ -467,18 +492,24 @@ export function Reports() {
     const probs = rs.flatMap(r => (r.technical_problems ?? []).map(p => ({ ...p, r })))
     if (type.startsWith('daily')) {
       const total = rs.reduce((a, r) => a + r.quantity, 0)
+      const cell = (r: RecordRow, k: string) => { const a = hhmm(r[`${k}_start`]), b = hhmm(r[`${k}_end`]), w = r[`${k}_witness`]
+        return `${label(r[`${k}_status`])}${a && b ? ` ${a}-${b} (${fmtDur(stageMins(r, k))})` : ''}${w ? ` - verified by ${w}` : ''}` }
       setTbl({ title: type === 'daily_one' ? 'Engineer Daily Report' : 'All Engineers Daily Report', subtitle: sub,
-        columns: ['Engineer', 'FO No.', 'Series No.', 'Rating', 'Qty', 'No Load', 'Short Circuit', 'Load Test', 'Problems', 'Remarks'],
-        rows: [...rs.map(r => [name(r), r.fo_number, r.series_number, r.rectifier_rating, r.quantity, label(r.no_load_status), label(r.short_circuit_status), label(r.load_test_status), (r.technical_problems ?? []).map((p: Problem) => `${p.category} (${p.severity})`).join('; ') || 'None', r.remarks ?? '']), ['TOTAL', '', '', '', total, '', '', '', '', '']] })
+        columns: ['Engineer', 'FO No.', 'Series No.', 'Rating', 'Qty', 'No Load', 'Short Circuit', 'Load Test', 'Functional / Program Check', 'Total Test Time', 'Problems', 'Remarks'],
+        rows: [...rs.map(r => [name(r), r.fo_number, r.series_number, r.rectifier_rating, r.quantity, cell(r, 'no_load'), cell(r, 'short_circuit'), cell(r, 'load_test'), cell(r, 'functional'), fmtDur(testMinutes(r)), (r.technical_problems ?? []).map((p: Problem) => `${p.category} (${p.severity})`).join('; ') || 'None', r.remarks ?? '']), ['TOTAL', '', '', '', total, '', '', '', '', fmtDur(rs.reduce((a, r) => a + testMinutes(r), 0)), '', '']] })
+    } else if (type === 'utilisation') {
+      const ids = [...new Set(rs.map(r => r.engineer_id))]
+      setTbl({ title: 'Engineer 8-hour Work Utilisation', subtitle: sub, columns: ['Engineer', 'Records', 'Total qty', 'Sum of stage times', 'Actual testing time', '8h shift used', 'Balance of 8h'],
+        rows: ids.map(i => { const x = rs.filter(r => r.engineer_id === i); const s = stats(x); const b = busyMinutes(x); return [name(x[0]), s.records, s.qty, fmtDur(s.testMins), fmtDur(b), Math.round(b / SHIFT_MINUTES * 100) + '%', fmtDur(Math.max(0, SHIFT_MINUTES - b))] }) })
     } else if (type === 'weekly' || type === 'monthly') {
       const ids = [...new Set(rs.map(r => r.engineer_id))]
       setTbl({ title: type === 'weekly' ? 'Weekly Productivity Report' : 'Monthly Productivity Report', subtitle: sub,
-        columns: ['Engineer', 'Days worked', 'FO numbers', 'Rectifiers', 'Total qty', 'Avg daily qty', 'No Load done', 'Short Circuit done', 'Load done', 'Failed tests', 'Problems'],
-        rows: ids.map(i => { const x = rs.filter(r => r.engineer_id === i); const s = stats(x); return [name(x[0]), s.days, s.fos, s.records, s.qty, s.avg, s.nl, s.sc, s.lt, s.failed, s.problems] }) })
+        columns: ['Engineer', 'Days worked', 'FO numbers', 'Rectifiers', 'Total qty', 'Avg daily qty', 'No Load done', 'Short Circuit done', 'Load done', 'Functional done', 'Failed tests', 'Problems', 'Testing time'],
+        rows: ids.map(i => { const x = rs.filter(r => r.engineer_id === i); const s = stats(x); return [name(x[0]), s.days, s.fos, s.records, s.qty, s.avg, s.nl, s.sc, s.lt, s.fc, s.failed, s.problems, fmtDur(busyMinutes(x))] }) })
     } else if (type === 'rating') {
       const rt = [...new Set(rs.map(r => r.rectifier_rating))].sort()
-      setTbl({ title: 'Rating-wise Testing Report', subtitle: sub, columns: ['Rating', 'Records', 'Total qty', 'FO numbers', 'No Load done', 'Short Circuit done', 'Load done', 'Fully completed', 'Failed tests'],
-        rows: rt.map(k => { const x = rs.filter(r => r.rectifier_rating === k); const s = stats(x); return [k, s.records, s.qty, s.fos, s.nl, s.sc, s.lt, x.filter(r => finalStatus(r) === 'Completed').length, s.failed] }) })
+      setTbl({ title: 'Rating-wise Testing Report', subtitle: sub, columns: ['Rating', 'Records', 'Total qty', 'FO numbers', 'No Load done', 'Short Circuit done', 'Load done', 'Functional done', 'Fully completed', 'Failed tests'],
+        rows: rt.map(k => { const x = rs.filter(r => r.rectifier_rating === k); const s = stats(x); return [k, s.records, s.qty, s.fos, s.nl, s.sc, s.lt, s.fc, x.filter(r => finalStatus(r) === 'Completed').length, s.failed] }) })
     } else {
       const cats = [...new Set(probs.map(p => p.category))]
       setTbl({ title: 'Problem Analysis Report', subtitle: sub, columns: ['Category', 'Total', 'Critical', 'High', 'Medium', 'Low', 'Open', 'Under investigation', 'Resolved'],
@@ -536,4 +567,3 @@ export function Settings() {
     </div>
   )
 }
-
