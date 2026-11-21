@@ -17,7 +17,8 @@ export interface RecordRow {
   submission_status: 'draft' | 'submitted'; created_at: string; updated_at: string
   functional_status: TestStatus
   profiles?: { full_name: string } | null; technical_problems?: Problem[]
-  [key: string]: any // stage timing fields: <stage>_start, <stage>_end, <stage>_witness
+  test_start_at: string | null; test_end_at: string | null; verified_by: string | null
+  [key: string]: any
 }
 
 export const TEST_STATUSES: { v: TestStatus; l: string }[] = [
@@ -40,29 +41,28 @@ export const STAGES = [
   { key: 'load_test', label: 'Load test' },
   { key: 'functional', label: 'Functional / program check' },
 ] as const
-export const hhmm = (t?: string | null) => (t ? t.slice(0, 5) : '')
-const toMin = (t: string) => { const [h, m] = t.split(':'); return Number(h) * 60 + Number(m) }
-export const diffMins = (a?: string | null, b?: string | null) => (a && b && toMin(b) > toMin(a) ? toMin(b) - toMin(a) : 0)
-export const stageMins = (r: RecordRow, k: string) => diffMins(r[`${k}_start`], r[`${k}_end`])
-/** Sum of all stage durations of one record (full testing time of that FO entry). */
-export const testMinutes = (r: RecordRow) => STAGES.reduce((a, s) => a + stageMins(r, s.key), 0)
-/** Real clock time worked: overlapping stages are counted once, per engineer per day. */
+export const spanMins = (a?: string | null, b?: string | null) => {
+  const x = a ? new Date(a).getTime() : NaN, y = b ? new Date(b).getTime() : NaN
+  return Number.isFinite(x) && Number.isFinite(y) && y > x ? Math.round((y - x) / 60000) : 0
+}
+/** Complete testing time of one FO entry: overall start date/time to end date/time. */
+export const testMinutes = (r: RecordRow) => spanMins(r.test_start_at, r.test_end_at)
+/** Actual time worked by an engineer: overlapping tests are counted once. */
 export function busyMinutes(rs: RecordRow[]) {
   const groups: Record<string, [number, number][]> = {}
-  rs.forEach(r => STAGES.forEach(s => {
-    const a = r[`${s.key}_start`], b = r[`${s.key}_end`]
-    if (a && b && toMin(b) > toMin(a)) (groups[r.engineer_id + '|' + r.testing_date] ??= []).push([toMin(a), toMin(b)])
-  }))
+  rs.forEach(r => { if (testMinutes(r) > 0) (groups[r.engineer_id] ??= []).push([new Date(r.test_start_at).getTime(), new Date(r.test_end_at).getTime()]) })
   let total = 0
   Object.values(groups).forEach(iv => {
     iv.sort((x, y) => x[0] - y[0]); let [cs, ce] = iv[0]
     for (const [a, b] of iv.slice(1)) { if (a <= ce) ce = Math.max(ce, b); else { total += ce - cs; cs = a; ce = b } }
     total += ce - cs
   })
-  return total
+  return Math.round(total / 60000)
 }
 export const fmtDur = (m: number) => (m > 0 ? `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m` : '-')
-export const nowHHMM = () => new Date().toTimeString().slice(0, 5)
+export const fmtDT = (s?: string | null) => (s ? new Date(s).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : '-')
+export const dtLocal = (s?: string | null) => (s ? s.replace(' ', 'T').slice(0, 16) : '')
+export const nowDT = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16) }
 export const SHIFT_MINUTES = 480 // 8-hour working day
 
 export function finalStatus(r: RecordRow) {
