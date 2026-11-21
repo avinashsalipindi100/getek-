@@ -100,17 +100,16 @@ export function EngineerDashboard() {
 
   return (
     <div className="space-y-5">
-      <Hero title={`Hello, ${profile.full_name}`} sub={`This month: ${monthQty} units ordered across your tests`} right={<Link to="/report/new"><Btn kind="amber" className="!px-4 !py-2.5 text-base shadow-lg">+ Add New Testing Report</Btn></Link>} />
+      <Hero title={`Hello, ${profile.full_name}`} sub={`This month: ${monthQty} units tested`} right={<Link to="/report/new"><Btn kind="amber" className="!px-4 !py-2.5 text-base shadow-lg">+ Add New Testing Report</Btn></Link>} />
+      {t.some(r => !testMinutes(r)) && <p className="rounded-md border border-amber-300 bg-amber-50 px-4 py-2.5 text-sm text-amber-900">Some of today's reports have no testing start and end time, so they are not counted in your testing time or 8-hour shift. Open My Records, edit the report and add the start and end date and time.</p>}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Stat label="Rectifiers tested today" value={t.length} />
-        <Stat label="Order quantity today" value={sum(t)} />
-        <Stat label="FO (orders) completed" value={new Set(t.filter(r => finalStatus(r) === 'Completed').map(r => r.fo_number)).size} tone="green" />
         <Stat label="No load tests completed" value={done('no_load_status')} tone="green" />
         <Stat label="Short circuit tests completed" value={done('short_circuit_status')} tone="green" />
         <Stat label="Load tests completed" value={done('load_test_status')} tone="green" />
         <Stat label="Functional checks completed" value={done('functional_status')} tone="green" />
         <Stat label="Testing time today" value={fmtDur(busyMinutes(t))} />
-        <Stat label="8-hour shift used" value={Math.round(busyMinutes(t) / SHIFT_MINUTES * 100) + '%'} tone="amber" />
+        <Stat label={`8-hour shift used (${busyMinutes(t) ? fmtDur(busyMinutes(t)) : '0h 00m'} of 8h)`} value={Math.round(busyMinutes(t) / SHIFT_MINUTES * 100) + '%'} tone="amber" />
         <Stat label="Rectifiers with problems" value={t.filter(r => (r.technical_problems ?? []).length).length} tone="red" />
         <Stat label="Pending testing activities" value={pending} tone="amber" /></div>
       <div className="grid gap-4 lg:grid-cols-2">
