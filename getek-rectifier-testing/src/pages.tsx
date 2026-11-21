@@ -40,23 +40,29 @@ export function Login({ recovery, onDone }: { recovery: boolean; onDone: () => v
     } finally { setBusy(false) }
   }
   return (
-    <div className="grid min-h-screen lg:grid-cols-2">
-      <div className="relative hidden flex-col justify-between overflow-hidden bg-brand-900 p-10 text-white lg:flex">
-        <div className="absolute -right-24 -top-24 h-80 w-80 rounded-full border-[40px] border-amber-500/20" /><div className="absolute -bottom-32 -left-16 h-96 w-96 rounded-full border-[50px] border-white/5" />
-        <div className="relative flex items-center gap-3 rounded-lg bg-white p-3 text-brand-900 w-fit"><Logo size={36} /><b>GETEK Electronics Pvt. Ltd.</b></div>
-        <div className="relative"><h1 className="text-4xl font-semibold leading-tight">Rectifier testing,<br />tracked from bench to dispatch.</h1>
-          <p className="mt-4 max-w-md text-slate-300">Daily test reports, FO progress and engineer performance in one place.</p>
-          <div className="mt-8 grid max-w-md gap-4 text-sm">{[[Cpu, 'No load, short circuit and load tests recorded per unit'], [Factory, 'FO-wise progress against ordered quantity'], [ShieldCheck, 'Role-based access: engineers see only their own work']].map(([I, t]: any) =>
-            <div key={t} className="flex items-center gap-3"><span className="rounded-md bg-amber-500 p-2 text-slate-900"><I size={16} /></span>{t}</div>)}</div></div>
-        <p className="relative text-xs text-slate-400">GETEK Rectifier Testing Management System</p>
+    <div className="grid min-h-screen lg:grid-cols-[1.1fr_1fr]">
+      <div className="hidden flex-col justify-between bg-brand-900 p-12 text-white lg:flex">
+        <div className="flex w-fit items-center gap-3 rounded-md bg-white px-3 py-2.5 text-brand-900"><Logo size={34} /><b className="text-sm">GETEK Electronics Pvt. Ltd.</b></div>
+        <div>
+          <h1 className="max-w-md text-4xl font-semibold leading-tight tracking-tight">Rectifier testing, from bench to dispatch.</h1>
+          <p className="mt-4 max-w-md text-slate-300">Record every test stage, the full testing time and who verified it, FO by FO.</p>
+          <svg viewBox="0 0 600 150" className="mt-10 w-full max-w-lg" role="img" aria-label="AC input wave and rectified output wave">
+            <line x1="0" y1="120" x2="600" y2="120" stroke="white" strokeOpacity=".25" strokeDasharray="4 6" />
+            <path d="M0.0 120.0 L5.0 113.7 L10.0 107.5 L15.0 101.5 L20.0 95.6 L25.0 90.0 L30.0 84.7 L35.0 79.9 L40.0 75.4 L45.0 71.5 L50.0 68.0 L55.0 65.2 L60.0 62.9 L65.0 61.3 L70.0 60.3 L75.0 60.0 L80.0 60.3 L85.0 61.3 L90.0 62.9 L95.0 65.2 L100.0 68.0 L105.0 71.5 L110.0 75.4 L115.0 79.9 L120.0 84.7 L125.0 90.0 L130.0 95.6 L135.0 101.5 L140.0 107.5 L145.0 113.7 L150.0 120.0 L155.0 126.3 L160.0 132.5 L165.0 138.5 L170.0 144.4 L175.0 150.0 L180.0 155.3 L185.0 160.1 L190.0 164.6 L195.0 168.5 L200.0 172.0 L205.0 174.8 L210.0 177.1 L215.0 178.7 L220.0 179.7 L225.0 180.0 L230.0 179.7 L235.0 178.7 L240.0 177.1 L245.0 174.8 L250.0 172.0 L255.0 168.5 L260.0 164.6 L265.0 160.1 L270.0 155.3 L275.0 150.0 L280.0 144.4 L285.0 138.5 L290.0 132.5 L295.0 126.3 L300.0 120.0 L305.0 113.7 L310.0 107.5 L315.0 101.5 L320.0 95.6 L325.0 90.0 L330.0 84.7 L335.0 79.9 L340.0 75.4 L345.0 71.5 L350.0 68.0 L355.0 65.2 L360.0 62.9 L365.0 61.3 L370.0 60.3 L375.0 60.0 L380.0 60.3 L385.0 61.3 L390.0 62.9 L395.0 65.2 L400.0 68.0 L405.0 71.5 L410.0 75.4 L415.0 79.9 L420.0 84.7 L425.0 90.0 L430.0 95.6 L435.0 101.5 L440.0 107.5 L445.0 113.7 L450.0 120.0 L455.0 126.3 L460.0 132.5 L465.0 138.5 L470.0 144.4 L475.0 150.0 L480.0 155.3 L485.0 160.1 L490.0 164.6 L495.0 168.5 L500.0 172.0 L505.0 174.8 L510.0 177.1 L515.0 178.7 L520.0 179.7 L525.0 180.0 L530.0 179.7 L535.0 178.7 L540.0 177.1 L545.0 174.8 L550.0 172.0 L555.0 168.5 L560.0 164.6 L565.0 160.1 L570.0 155.3 L575.0 150.0 L580.0 144.4 L585.0 138.5 L590.0 132.5 L595.0 126.3 L600.0 120.0" fill="none" stroke="white" strokeOpacity=".35" strokeWidth="1.5" />
+            <path d="M0.0 120.0 L5.0 113.7 L10.0 107.5 L15.0 101.5 L20.0 95.6 L25.0 90.0 L30.0 84.7 L35.0 79.9 L40.0 75.4 L45.0 71.5 L50.0 68.0 L55.0 65.2 L60.0 62.9 L65.0 61.3 L70.0 60.3 L75.0 60.0 L80.0 60.3 L85.0 61.3 L90.0 62.9 L95.0 65.2 L100.0 68.0 L105.0 71.5 L110.0 75.4 L115.0 79.9 L120.0 84.7 L125.0 90.0 L130.0 95.6 L135.0 101.5 L140.0 107.5 L145.0 113.7 L150.0 120.0 L155.0 113.7 L160.0 107.5 L165.0 101.5 L170.0 95.6 L175.0 90.0 L180.0 84.7 L185.0 79.9 L190.0 75.4 L195.0 71.5 L200.0 68.0 L205.0 65.2 L210.0 62.9 L215.0 61.3 L220.0 60.3 L225.0 60.0 L230.0 60.3 L235.0 61.3 L240.0 62.9 L245.0 65.2 L250.0 68.0 L255.0 71.5 L260.0 75.4 L265.0 79.9 L270.0 84.7 L275.0 90.0 L280.0 95.6 L285.0 101.5 L290.0 107.5 L295.0 113.7 L300.0 120.0 L305.0 113.7 L310.0 107.5 L315.0 101.5 L320.0 95.6 L325.0 90.0 L330.0 84.7 L335.0 79.9 L340.0 75.4 L345.0 71.5 L350.0 68.0 L355.0 65.2 L360.0 62.9 L365.0 61.3 L370.0 60.3 L375.0 60.0 L380.0 60.3 L385.0 61.3 L390.0 62.9 L395.0 65.2 L400.0 68.0 L405.0 71.5 L410.0 75.4 L415.0 79.9 L420.0 84.7 L425.0 90.0 L430.0 95.6 L435.0 101.5 L440.0 107.5 L445.0 113.7 L450.0 120.0 L455.0 113.7 L460.0 107.5 L465.0 101.5 L470.0 95.6 L475.0 90.0 L480.0 84.7 L485.0 79.9 L490.0 75.4 L495.0 71.5 L500.0 68.0 L505.0 65.2 L510.0 62.9 L515.0 61.3 L520.0 60.3 L525.0 60.0 L530.0 60.3 L535.0 61.3 L540.0 62.9 L545.0 65.2 L550.0 68.0 L555.0 71.5 L560.0 75.4 L565.0 79.9 L570.0 84.7 L575.0 90.0 L580.0 95.6 L585.0 101.5 L590.0 107.5 L595.0 113.7 L600.0 120.0" fill="none" stroke="#f2a900" strokeWidth="3" strokeLinejoin="round" />
+            <text x="2" y="146" fontSize="11" fill="#cbd5e1">AC input</text><text x="470" y="146" fontSize="11" fill="#f2a900">Rectified DC output</text>
+          </svg>
+        </div>
+        <ul className="space-y-3 text-sm text-slate-300">{['No load, short circuit, load and functional checks per unit', 'Start to end testing time for every FO', 'Engineer 8-hour work monitoring for managers'].map(t =>
+          <li key={t} className="flex items-start gap-3"><span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-500" />{t}</li>)}</ul>
       </div>
-      <div className="flex items-center justify-center bg-slate-50 p-4">
-        <form onSubmit={submit} className="w-full max-w-sm space-y-4">
-          <div className="text-center lg:hidden"><div className="flex justify-center"><Logo size={48} /></div><h1 className="mt-2 font-semibold text-brand-900">GETEK Rectifier Testing</h1></div>
+      <div className="flex items-center justify-center bg-[#eef2f6] p-4">
+        <form onSubmit={submit} className="w-full max-w-sm space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-panel sm:p-7">
+          <div className="text-center lg:hidden"><div className="flex justify-center"><Logo size={44} /></div><h1 className="mt-2 font-semibold text-brand-900">GETEK Rectifier Testing</h1></div>
           {recovery ? <><h2 className="text-lg font-semibold">Set a new password</h2>{field('pw', 'New password', 'password')}</> : <>
-            <div className="grid grid-cols-2 gap-2 rounded-lg bg-slate-200 p-1">{([['engineer', 'Engineer', Wrench], ['admin', 'Manager', UserCog]] as const).map(([r, l, I]) =>
-              <button type="button" key={r} onClick={() => { setRole(r); if (r === 'engineer') setSignup(false) }} className={`flex items-center justify-center gap-2 rounded-md py-2 text-sm font-medium ${role === r ? 'bg-white text-brand-700 shadow' : 'text-slate-600'}`}><I size={15} />{l}</button>)}</div>
-            <h2 className="text-lg font-semibold">{signup ? 'Create manager account' : `${role === 'admin' ? 'Manager' : 'Engineer'} sign in`}</h2>
+            <div className="grid grid-cols-2 gap-1 rounded-md bg-slate-100 p-1">{([['engineer', 'Engineer', Wrench], ['admin', 'Manager', UserCog]] as const).map(([r, l, I]) =>
+              <button type="button" key={r} onClick={() => { setRole(r); if (r === 'engineer') setSignup(false) }} className={`flex items-center justify-center gap-2 rounded py-2 text-sm font-medium transition-colors ${role === r ? 'bg-white text-brand-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}><I size={15} />{l}</button>)}</div>
+            <h2 className="pt-1 text-lg font-semibold text-slate-900">{signup ? 'Create manager account' : `${role === 'admin' ? 'Manager' : 'Engineer'} sign in`}</h2>
             {signup && field('name', 'Full name')}{field('email', 'Email', 'email')}{field('pw', 'Password', 'password')}
             {signup && <div>{field('code', 'Manager registration code', 'password')}<p className="mt-1 text-xs text-slate-500">Ask your company administrator for this code.</p></div>}</>}
           <Btn className="w-full" disabled={busy}>{recovery ? 'Save new password' : signup ? 'Create account' : 'Sign in'}</Btn>
