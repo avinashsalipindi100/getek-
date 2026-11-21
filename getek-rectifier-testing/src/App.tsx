@@ -15,18 +15,19 @@ function Shell({ profile, children }: { profile: Profile; children: ReactNode })
     : [['/', 'Dashboard', LayoutDashboard], ['/report/new', 'New Report', PlusCircle], ['/records', 'My Records', ClipboardList], ['/problems', 'My Problems', AlertTriangle]]
   return (
     <div className="min-h-screen lg:flex">
-      <aside className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-gradient-to-b from-brand-900 to-[#06182c] text-white shadow-xl transition lg:static lg:translate-x-0 ${open ? '' : '-translate-x-full'}`}>
-        <div className="m-3 flex items-center gap-3 rounded-xl bg-white p-3"><Logo /><span className="text-xs font-bold leading-tight text-brand-900">GETEK Rectifier<br />Testing System</span></div>
-        <nav className="space-y-1 p-3">{links.map(([to, text, Icon]: any) =>
+      <>{open && <div className="fixed inset-0 z-20 bg-slate-900/40 lg:hidden" onClick={() => setOpen(false)} />}
+      <aside className={`fixed inset-y-0 left-0 z-30 w-64 transform bg-brand-900 text-white transition-transform lg:static lg:translate-x-0 ${open ? '' : '-translate-x-full'}`}>
+        <div className="m-4 flex items-center gap-3 rounded-md bg-white p-2.5"><Logo size={34} /><span className="text-xs font-bold leading-tight text-brand-900">GETEK Rectifier<br />Testing System</span></div>
+        <nav className="space-y-0.5 px-3 py-2">{links.map(([to, text, Icon]: any) =>
           <NavLink key={to} to={to} end={to === '/'} onClick={() => setOpen(false)}
-            className={({ isActive }) => `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition ${isActive ? 'bg-amber-500 font-semibold text-slate-900 shadow' : 'text-slate-200 hover:bg-white/10'}`}><Icon size={17} />{text}</NavLink>)}</nav>
-        <div className="absolute bottom-0 w-full border-t border-white/10 p-3 text-xs">
+            className={({ isActive }) => `flex items-center gap-3 rounded-md px-3 py-2.5 text-sm transition-colors ${isActive ? 'bg-white/10 font-semibold text-white shadow-[inset_3px_0_0_#f2a900]' : 'text-slate-300 hover:bg-white/5 hover:text-white'}`}><Icon size={17} />{text}</NavLink>)}</nav>
+        <div className="absolute bottom-0 w-full border-t border-white/10 p-4 text-xs">
           <div className="mb-3 flex items-center gap-2"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500 font-bold text-slate-900">{(profile.full_name || "?")[0].toUpperCase()}</span><div className="min-w-0 truncate">{profile.full_name}<div className="text-slate-400">{admin ? 'Testing Manager' : 'Testing Engineer'}</div></div></div>
           <button onClick={async () => { await supabase.auth.signOut(); nav('/') }} className="flex items-center gap-2 text-slate-300 hover:text-white"><LogOut size={14} />Sign out</button></div>
-      </aside>
+      </aside></>
       <div className="min-w-0 flex-1">
-        <header className="flex items-center gap-3 border-b bg-white p-3 lg:hidden"><button onClick={() => setOpen(!open)}><Menu /></button><Logo size={28} /></header>
-        <main className="mx-auto max-w-7xl p-4 lg:p-6">{children}</main>
+        <header className="flex items-center gap-3 border-b border-slate-200 bg-white p-3 lg:hidden"><button onClick={() => setOpen(!open)}><Menu /></button><Logo size={28} /></header>
+        <main className="mx-auto max-w-7xl space-y-5 p-4 lg:p-8">{children}</main>
       </div>
     </div>
   )
