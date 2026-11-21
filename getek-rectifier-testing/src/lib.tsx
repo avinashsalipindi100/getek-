@@ -15,7 +15,9 @@ export interface RecordRow {
   id: string; engineer_id: string; testing_date: string; fo_number: string; series_number: string; rectifier_rating: string; quantity: number; ordered_quantity: number | null
   no_load_status: TestStatus; short_circuit_status: TestStatus; load_test_status: TestStatus; remarks: string | null
   submission_status: 'draft' | 'submitted'; created_at: string; updated_at: string
+  functional_status: TestStatus
   profiles?: { full_name: string } | null; technical_problems?: Problem[]
+  [key: string]: any // stage timing fields: <stage>_start, <stage>_end, <stage>_witness
 }
 
 export const TEST_STATUSES: { v: TestStatus; l: string }[] = [
@@ -31,8 +33,40 @@ export const addDays = (s: string, n: number) => { const d = new Date(s + 'T00:0
 export const monthRange = (s: string) => { const d = new Date(s + 'T00:00:00'); return [iso(new Date(d.getFullYear(), d.getMonth(), 1)), iso(new Date(d.getFullYear(), d.getMonth() + 1, 0))] as const }
 export const weekStart = (s: string) => { const d = new Date(s + 'T00:00:00'); const day = (d.getDay() + 6) % 7; return addDays(s, -day) }
 
+// ---- testing stages: status + start/end time + witness (in-charge / manager) ----
+export const STAGES = [
+  { key: 'no_load', label: 'No load test' },
+  { key: 'short_circuit', label: 'Short circuit test' },
+  { key: 'load_test', label: 'Load test' },
+  { key: 'functional', label: 'Functional / program check' },
+] as const
+export const hhmm = (t?: string | null) => (t ? t.slice(0, 5) : '')
+const toMin = (t: string) => { const [h, m] = t.split(':'); return Number(h) * 60 + Number(m) }
+export const diffMins = (a?: string | null, b?: string | null) => (a && b && toMin(b) > toMin(a) ? toMin(b) - toMin(a) : 0)
+export const stageMins = (r: RecordRow, k: string) => diffMins(r[`${k}_start`], r[`${k}_end`])
+/** Sum of all stage durations of one record (full testing time of that FO entry). */
+export const testMinutes = (r: RecordRow) => STAGES.reduce((a, s) => a + stageMins(r, s.key), 0)
+/** Real clock time worked: overlapping stages are counted once, per engineer per day. */
+export function busyMinutes(rs: RecordRow[]) {
+  const groups: Record<string, [number, number][]> = {}
+  rs.forEach(r => STAGES.forEach(s => {
+    const a = r[`${s.key}_start`], b = r[`${s.key}_end`]
+    if (a && b && toMin(b) > toMin(a)) (groups[r.engineer_id + '|' + r.testing_date] ??= []).push([toMin(a), toMin(b)])
+  }))
+  let total = 0
+  Object.values(groups).forEach(iv => {
+    iv.sort((x, y) => x[0] - y[0]); let [cs, ce] = iv[0]
+    for (const [a, b] of iv.slice(1)) { if (a <= ce) ce = Math.max(ce, b); else { total += ce - cs; cs = a; ce = b } }
+    total += ce - cs
+  })
+  return total
+}
+export const fmtDur = (m: number) => (m > 0 ? `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m` : '-')
+export const nowHHMM = () => new Date().toTimeString().slice(0, 5)
+export const SHIFT_MINUTES = 480 // 8-hour working day
+
 export function finalStatus(r: RecordRow) {
-  const t = [r.no_load_status, r.short_circuit_status, r.load_test_status]
+  const t = [r.no_load_status, r.short_circuit_status, r.load_test_status, r.functional_status]
   if (t.includes('failed')) return 'Failed'
   if (t.every(x => x === 'completed')) return 'Completed'
   return 'Pending'
@@ -52,13 +86,14 @@ export function useRealtime(tables: string[], cb: () => void) {
 export const RECORD_SELECT = '*, profiles:engineer_id(full_name), technical_problems(*)'
 
 export function stats(rs: RecordRow[]) {
-  const c = (k: 'no_load_status' | 'short_circuit_status' | 'load_test_status', s: string) => rs.filter(r => r[k] === s).length
+  const c = (k: 'no_load_status' | 'short_circuit_status' | 'load_test_status' | 'functional_status', s: string) => rs.filter(r => r[k] === s).length
   const days = new Set(rs.map(r => r.testing_date)).size
   const qty = rs.reduce((a, r) => a + r.quantity, 0)
   return {
     records: rs.length, qty, fos: new Set(rs.map(r => r.fo_number)).size, days, avg: days ? +(qty / days).toFixed(1) : 0,
-    nl: c('no_load_status', 'completed'), sc: c('short_circuit_status', 'completed'), lt: c('load_test_status', 'completed'),
-    failed: c('no_load_status', 'failed') + c('short_circuit_status', 'failed') + c('load_test_status', 'failed'),
+    nl: c('no_load_status', 'completed'), sc: c('short_circuit_status', 'completed'), lt: c('load_test_status', 'completed'), fc: c('functional_status', 'completed'),
+    failed: c('no_load_status', 'failed') + c('short_circuit_status', 'failed') + c('load_test_status', 'failed') + c('functional_status', 'failed'),
+    testMins: rs.reduce((a, r) => a + testMinutes(r), 0),
     problems: rs.reduce((a, r) => a + (r.technical_problems?.length ?? 0), 0),
   }
 }
