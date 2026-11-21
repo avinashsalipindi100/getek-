@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js'
 import { createContext, ReactNode, useContext, useEffect, useState } from 'react'
-import { Loader2, X, Zap } from 'lucide-react'
+import { Loader2, X } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -137,37 +137,36 @@ export function ToastHost() {
   const [items, set] = useState<T[]>([])
   useEffect(() => { push = t => { set(s => [...s, t]); setTimeout(() => set(s => s.filter(x => x.id !== t.id)), 4000) } }, [])
   return <div className="fixed right-4 top-4 z-50 space-y-2">{items.map(t =>
-    <div key={t.id} className={`rounded-md px-4 py-2 text-sm text-white shadow-lg ${t.kind === 'ok' ? 'bg-emerald-600' : 'bg-red-600'}`}>{t.msg}</div>)}</div>
+    <div key={t.id} className={`rounded-md px-4 py-2.5 text-sm font-medium text-white shadow-lg ${t.kind === 'ok' ? 'bg-emerald-600' : 'bg-red-600'}`}>{t.msg}</div>)}</div>
 }
 
 export const Spinner = () => <div className="flex justify-center p-8"><Loader2 className="animate-spin text-brand-600" /></div>
 export const Card = ({ title, children, right, className = '' }: { title?: string; children: ReactNode; right?: ReactNode; className?: string }) =>
-  <section className={`overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm ${className}`}>
-    {title && <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/70 px-4 py-3"><h3 className="text-sm font-semibold text-brand-900">{title}</h3>{right}</header>}
+  <section className={`overflow-hidden rounded-lg border border-slate-200 bg-white shadow-panel ${className}`}>
+    {title && <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-4 py-3"><h3 className="text-sm font-semibold text-slate-900">{title}</h3>{right}</header>}
     <div className="p-4">{children}</div></section>
 export const Stat = ({ label, value, tone = 'brand' }: { label: string; value: ReactNode; tone?: 'brand' | 'amber' | 'red' | 'green' }) => {
-  const c = { brand: 'from-brand-50 text-brand-600 border-brand-500', amber: 'from-amber-50 text-amber-600 border-amber-500', red: 'from-red-50 text-red-600 border-red-500', green: 'from-emerald-50 text-emerald-600 border-emerald-500' }[tone]
-  return <div className={`relative overflow-hidden rounded-xl border border-slate-200/80 border-t-4 bg-gradient-to-br to-white p-4 shadow-sm ${c}`}>
-    <Zap size={46} className="absolute -right-2 -top-2 opacity-10" /><div className="text-3xl font-bold text-slate-900">{value}</div><div className="mt-1 text-xs font-medium text-slate-500">{label}</div></div>
+  const c = { brand: 'border-l-brand-500', amber: 'border-l-amber-500', red: 'border-l-red-500', green: 'border-l-emerald-500' }[tone]
+  return <div className={`rounded-lg border border-l-4 border-slate-200 bg-white px-4 py-3.5 shadow-panel ${c}`}>
+    <div className="text-2xl font-semibold text-slate-900">{value}</div><div className="mt-0.5 text-xs font-medium text-slate-500">{label}</div></div>
 }
 export const Hero = ({ title, sub, right }: { title: string; sub?: string; right?: ReactNode }) =>
-  <div className="relative overflow-hidden rounded-xl bg-gradient-to-r from-brand-900 via-brand-700 to-brand-500 p-5 text-white shadow-md">
-    <svg className="absolute inset-0 h-full w-full opacity-10" xmlns="http://www.w3.org/2000/svg"><defs><pattern id="g" width="36" height="36" patternUnits="userSpaceOnUse"><path d="M36 0H0V36" fill="none" stroke="white" strokeWidth="1" /><circle cx="0" cy="0" r="2.5" fill="white" /></pattern></defs><rect width="100%" height="100%" fill="url(#g)" /></svg>
-    <div className="relative flex flex-wrap items-center justify-between gap-3"><div><h1 className="text-xl font-semibold sm:text-2xl">{title}</h1>{sub && <p className="mt-1 text-sm text-brand-100">{sub}</p>}</div>{right}</div></div>
+  <div className="flex flex-wrap items-end justify-between gap-3 border-b border-slate-300/70 pb-4">
+    <div><h1 className="text-2xl font-semibold text-slate-900">{title}</h1>{sub && <p className="mt-1 text-sm text-slate-500">{sub}</p>}</div>{right}</div>
 export const Btn = ({ kind = 'primary', className = '', ...p }: React.ButtonHTMLAttributes<HTMLButtonElement> & { kind?: 'primary' | 'ghost' | 'danger' | 'amber' }) => {
-  const k = { primary: 'bg-brand-600 text-white shadow-sm hover:bg-brand-700', ghost: 'border border-slate-300 bg-white text-slate-700 hover:bg-slate-50', danger: 'bg-red-600 text-white hover:bg-red-700', amber: 'bg-amber-500 text-slate-900 hover:bg-amber-600' }[kind]
-  return <button {...p} className={`inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium disabled:opacity-50 ${k} ${className}`} />
+  const k = { primary: 'bg-brand-700 text-white shadow-sm hover:bg-brand-900', ghost: 'border border-slate-300 bg-white text-slate-700 shadow-sm hover:bg-slate-50', danger: 'bg-red-600 text-white hover:bg-red-700', amber: 'bg-amber-500 text-slate-900 hover:bg-amber-600' }[kind]
+  return <button {...p} className={`inline-flex items-center justify-center gap-2 rounded-md px-3.5 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${k} ${className}`} />
 }
 const tones: Record<string, string> = {
   completed: 'bg-emerald-100 text-emerald-800', resolved: 'bg-emerald-100 text-emerald-800', failed: 'bg-red-100 text-red-800', critical: 'bg-red-100 text-red-800', high: 'bg-red-100 text-red-800',
   medium: 'bg-orange-100 text-orange-800', in_progress: 'bg-amber-100 text-amber-800', under_investigation: 'bg-orange-100 text-orange-800', open: 'bg-red-100 text-red-800',
   low: 'bg-slate-100 text-slate-700', not_started: 'bg-slate-100 text-slate-600', pending: 'bg-slate-100 text-slate-600', draft: 'bg-slate-200 text-slate-700', submitted: 'bg-brand-100 text-brand-700' }
-export const Badge = ({ v }: { v: string }) => <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${tones[v.toLowerCase().replace(/ /g, '_')] ?? 'bg-slate-100 text-slate-700'}`}>{v.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase())}</span>
+export const Badge = ({ v }: { v: string }) => <span className={`rounded-md px-2 py-0.5 text-xs font-medium ${tones[v.toLowerCase().replace(/ /g, '_')] ?? 'bg-slate-100 text-slate-700'}`}>{v.replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase())}</span>
 export const Table = ({ head, children, empty }: { head: string[]; children: ReactNode; empty?: boolean }) =>
-  <div className="overflow-x-auto"><table className="w-full"><thead className="bg-brand-50"><tr>{head.map(h => <th key={h} className="th">{h}</th>)}</tr></thead>
-    <tbody className="divide-y divide-slate-100 [&>tr:hover]:bg-brand-50/40">{children}</tbody></table>{empty && <p className="p-6 text-center text-sm text-slate-500">Nothing here yet.</p>}</div>
+  <div className="overflow-x-auto"><table className="w-full"><thead className="border-b border-slate-200 bg-slate-50"><tr>{head.map(h => <th key={h} className="th">{h}</th>)}</tr></thead>
+    <tbody className="divide-y divide-slate-100 [&>tr:nth-child(even)]:bg-slate-50/60 [&>tr:hover]:bg-brand-50/60">{children}</tbody></table>{empty && <p className="p-6 text-center text-sm text-slate-500">Nothing here yet.</p>}</div>
 export const Modal = ({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) =>
-  <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-black/40 p-4"><div className="mt-10 w-full max-w-2xl rounded-lg bg-white shadow-xl">
+  <div className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4"><div className="mt-10 w-full max-w-2xl rounded-lg bg-white shadow-xl">
     <div className="flex items-center justify-between border-b px-4 py-3"><h3 className="font-semibold">{title}</h3><button onClick={onClose}><X size={18} /></button></div><div className="p-4">{children}</div></div></div>
 export const Logo = ({ size = 40 }: { size?: number }) => <img src="/logo.png" alt="GETEK" style={{ height: size }} className="w-auto" onError={e => ((e.target as HTMLImageElement).style.display = 'none')} />
 export function SignedImg({ path }: { path: string }) {
