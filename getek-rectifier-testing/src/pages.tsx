@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { Cpu, Download, Factory, Plus, Printer, ShieldCheck, Trash2, UserCog, Wrench } from 'lucide-react'
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import { useAuth, supabase, toast, Btn, Card, Spinner, Stat, Badge, Table, Modal, Logo, SignedImg, Hero, TEST_STATUSES, CATEGORIES, SEVERITIES, PROBLEM_STATUSES, label, iso, today, addDays, monthRange, weekStart, finalStatus, STAGES, spanMins, testMinutes, busyMinutes, fmtDur, fmtDT, dtLocal, nowDT, SHIFT_MINUTES, useRealtime, RECORD_SELECT, stats, toCSV, toPDF, toXLSX } from './lib'
+import { useAuth, supabase, toast, Btn, Card, Spinner, Stat, Badge, Table, Modal, Logo, Hero, TEST_STATUSES, CATEGORIES, catLabel, PROBLEM_STATUSES, label, iso, today, addDays, monthRange, weekStart, finalStatus, STAGES, spanMins, testMinutes, busyMinutes, fmtDur, fmtDT, dtLocal, nowDT, SHIFT_MINUTES, useRealtime, RECORD_SELECT, stats, toCSV, toPDF, toXLSX } from './lib'
 import type { Profile, Problem, RecordRow, Tbl } from './lib'
 
 
@@ -110,7 +110,7 @@ export function EngineerDashboard() {
       <div className="grid gap-4 lg:grid-cols-2">
         <Card title="Daily productivity (last 14 days)"><div className="h-56"><ResponsiveContainer><BarChart data={chart}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="day" fontSize={11} /><YAxis allowDecimals={false} fontSize={11} /><Tooltip /><Bar dataKey="qty" name="Quantity" fill="#1f5f99" radius={[3, 3, 0, 0]} /></BarChart></ResponsiveContainer></div></Card>
         <Card title="Reported technical problems">
-          <Table head={['Category', 'FO', 'Severity', 'Status']} empty={!problems.length}>{problems.slice(0, 6).map(p => <tr key={p.id}><td className="td">{p.category}</td><td className="td">{p.rec.fo_number}</td><td className="td"><Badge v={p.severity} /></td><td className="td"><Badge v={p.problem_status} /></td></tr>)}</Table></Card></div>
+          <Table head={['Category', 'FO', 'Status']} empty={!problems.length}>{problems.slice(0, 6).map(p => <tr key={p.id}><td className="td">{catLabel(p)}</td><td className="td">{p.rec.fo_number}</td><td className="td"><Badge v={p.problem_status} /></td></tr>)}</Table></Card></div>
       <Card title="Today's submitted work and recent records">
         <Table head={['Date', 'FO', 'Series', 'Rating', 'Qty', 'No load', 'Short circuit', 'Load', 'Functional', 'Test time', 'Status', 'Saved as', '']} empty={!rows.length}>
           {rows.slice(0, 12).map(r => <tr key={r.id}><td className="td">{r.testing_date}</td><td className="td">{r.fo_number}</td><td className="td">{r.series_number}</td><td className="td">{r.rectifier_rating}</td><td className="td">{r.quantity}</td>
@@ -249,21 +249,20 @@ export function Engineers() {
 
 // ===== ReportForm =====
 
-type P = Partial<Problem> & { file?: File | null }
+type P = Partial<Problem>
 const blank: any = { testing_date: today(), fo_number: '', series_number: '', rectifier_rating: '', quantity: 1, ordered_quantity: '', no_load_status: 'not_started', short_circuit_status: 'not_started', load_test_status: 'not_started', functional_status: 'not_started', remarks: '',
   test_start_at: '', test_end_at: '', verified_by: '' }
 const normTimes = (r: any) => ({ ...r, test_start_at: dtLocal(r.test_start_at), test_end_at: dtLocal(r.test_end_at), verified_by: r.verified_by ?? '' })
-const newProblem = (): P => ({ category: CATEGORIES[0], description: '', severity: 'low', problem_status: 'open', file: null })
+const newProblem = (): P => ({ category: CATEGORIES[0], other_category: '', description: '', problem_status: 'open' })
 
 export function ReportForm() {
   const { profile } = useAuth(); const { id } = useParams(); const nav = useNavigate()
-  const [f, setF] = useState<any>(blank); const [ratings, setRatings] = useState<string[]>([]); const [custom, setCustom] = useState(false)
+  const [f, setF] = useState<any>(blank)
   const [hasProblem, setHasProblem] = useState(false); const [problems, setProblems] = useState<P[]>([])
   const [dup, setDup] = useState(''); const [busy, setBusy] = useState(false); const [ready, setReady] = useState(!id); const [locked, setLocked] = useState(false)
   const set = (k: string, v: any) => setF((s: any) => ({ ...s, [k]: v }))
 
   useEffect(() => {
-    supabase.from('rating_options').select('rating_name').eq('is_active', true).order('rating_name').then(({ data }) => setRatings((data ?? []).map(r => r.rating_name)))
     if (!id) return
     supabase.from('rectifier_records').select('*, technical_problems(*)').eq('id', id).single().then(({ data, error }) => {
       if (error || !data) { toast('Record not found', 'err'); return nav('/') }
@@ -284,6 +283,7 @@ export function ReportForm() {
   const save = async (status: 'draft' | 'submitted') => {
     if (!f.fo_number.trim() || !f.series_number.trim() || !f.rectifier_rating.trim() || !(f.quantity > 0)) return toast('FO number, series number, rating and a quantity above 0 are required', 'err')
     if (hasProblem && problems.some(p => !p.description?.trim())) return toast('Describe every reported problem', 'err')
+    if (hasProblem && problems.some(p => p.category === 'Other' && !(p.other_category || '').trim())) return toast('Type the problem name for the "Other" category', 'err')
     if (status === 'submitted') {
       const anyStarted = STAGES.some(st => f[`${st.key}_status`] !== 'not_started'), finished = finalStatus(f) !== 'Pending'
       if (anyStarted && !f.test_start_at) return toast('Enter the testing start date and time', 'err')
@@ -300,12 +300,7 @@ export function ReportForm() {
       if (id) { const { error } = await supabase.from('rectifier_records').update(payload).eq('id', id); if (error) throw error }
       else { const { data, error } = await supabase.from('rectifier_records').insert({ ...payload, engineer_id: profile.id }).select('id').single(); if (error) throw error; rid = data.id }
       for (const p of hasProblem && (!id || f.engineer_id === profile.id) ? problems : []) {
-        let image_url = p.image_url ?? null
-        if (p.file) {
-          const path = `${profile.id}/${Date.now()}-${p.file.name.replace(/[^\w.]/g, '_')}`
-          const up = await supabase.storage.from('problem-images').upload(path, p.file); if (up.error) throw up.error; image_url = path
-        }
-        const row = { category: p.category, description: p.description, severity: p.severity, problem_status: p.problem_status, image_url }
+        const row = { category: p.category, other_category: p.category === 'Other' ? (p.other_category || '').trim() : null, description: p.description, problem_status: p.problem_status }
         const r = p.id ? await supabase.from('technical_problems').update(row).eq('id', p.id) : await supabase.from('technical_problems').insert({ ...row, record_id: rid, reported_by: profile.id })
         if (r.error) throw r.error
       }
@@ -316,7 +311,6 @@ export function ReportForm() {
 
   if (!ready) return <Spinner />
   const upd = (i: number, k: string, v: any) => setProblems(a => a.map((p, j) => j === i ? { ...p, [k]: v } : p))
-  const ratingVal = custom ? '__custom' : f.rectifier_rating
   return (
     <div className="mx-auto max-w-3xl space-y-4">
       <h1 className="text-xl font-semibold">{id ? 'Edit testing report' : 'New testing report'}</h1>
@@ -326,10 +320,7 @@ export function ReportForm() {
         <div><label className="lbl">FO number (company order no.) *</label><input className="inp" value={f.fo_number} onChange={e => set('fo_number', e.target.value)} onBlur={checkDup} /></div>
         <div><label className="lbl">Series number *</label><input className="inp" value={f.series_number} onChange={e => set('series_number', e.target.value)} onBlur={checkDup} /></div>
         {dup && <p className="rounded bg-amber-100 p-2 text-sm text-amber-900 sm:col-span-2">Duplicate warning: {dup} You can still save if this is intended.</p>}
-        <div><label className="lbl">Rectifier rating *</label>
-          <select className="inp" value={ratingVal || ''} onChange={e => { if (e.target.value === '__custom') { setCustom(true); set('rectifier_rating', '') } else { setCustom(false); set('rectifier_rating', e.target.value) } }}>
-            <option value="">Select rating</option>{ratings.map(r => <option key={r}>{r}</option>)}<option value="__custom">Custom rating…</option></select>
-          {(custom || (f.rectifier_rating && !ratings.includes(f.rectifier_rating))) && <input className="inp mt-2" placeholder="e.g. 48V 2000A" value={f.rectifier_rating} onChange={e => set('rectifier_rating', e.target.value)} />}</div>
+        <div><label className="lbl">Rectifier rating *</label><input className="inp" placeholder="Type the rectifier rating" value={f.rectifier_rating} onChange={e => set('rectifier_rating', e.target.value)} /></div>
         <div><label className="lbl">Quantity tested in this entry *</label><input className="inp" type="number" min={1} value={f.quantity} onChange={e => set('quantity', e.target.value)} /></div>
         <div><label className="lbl">Order quantity (total ordered under this FO)</label><input className="inp" type="number" min={1} value={f.ordered_quantity ?? ''} onChange={e => set('ordered_quantity', e.target.value)} /></div>
         <div className="sm:col-span-2"><label className="lbl">Problems / observations (optional)</label><textarea className="inp" rows={2} value={f.remarks ?? ''} onChange={e => set('remarks', e.target.value)} /></div></div></Card>
@@ -345,12 +336,12 @@ export function ReportForm() {
       <Card title="Is there any problem identified during testing?">
         <div className="flex gap-6 text-sm">{[false, true].map(v => <label key={String(v)} className="flex items-center gap-2"><input type="radio" checked={hasProblem === v} onChange={() => { setHasProblem(v); if (v && !problems.length) setProblems([newProblem()]) }} />{v ? 'Yes' : 'No'}</label>)}</div>
         {hasProblem && <div className="mt-4 space-y-4">{problems.map((p, i) => (
-          <div key={p.id ?? i} className="space-y-3 rounded-md border border-slate-200 p-3"><div className="grid gap-3 sm:grid-cols-3">
+          <div key={p.id ?? i} className="space-y-3 rounded-md border border-slate-200 p-3"><div className="grid gap-3 sm:grid-cols-2">
             <div><label className="lbl">Category</label><select className="inp" value={p.category} onChange={e => upd(i, 'category', e.target.value)}>{CATEGORIES.map(c => <option key={c}>{c}</option>)}</select></div>
-            <div><label className="lbl">Severity</label><select className="inp" value={p.severity} onChange={e => upd(i, 'severity', e.target.value)}>{SEVERITIES.map(c => <option key={c} value={c}>{label(c)}</option>)}</select></div>
             <div><label className="lbl">Status</label><select className="inp" value={p.problem_status} onChange={e => upd(i, 'problem_status', e.target.value)}>{PROBLEM_STATUSES.map(c => <option key={c.v} value={c.v}>{c.l}</option>)}</select></div></div>
+            {p.category === 'Other' && <div><label className="lbl">Type the problem name *</label><input className="inp" value={p.other_category ?? ''} onChange={e => upd(i, 'other_category', e.target.value)} /></div>}
             <div><label className="lbl">Description *</label><textarea className="inp" rows={2} value={p.description} onChange={e => upd(i, 'description', e.target.value)} /></div>
-            <div className="flex flex-wrap items-center gap-3"><input type="file" accept="image/*" className="text-xs" onChange={e => upd(i, 'file', e.target.files?.[0] ?? null)} />{p.image_url && <SignedImg path={p.image_url} />}
+            <div className="flex flex-wrap items-center gap-3">
               {!p.id && <button className="ml-auto text-red-600" onClick={() => setProblems(a => a.filter((_, j) => j !== i))}><Trash2 size={16} /></button>}</div></div>))}
           <Btn kind="ghost" onClick={() => setProblems(a => [...a, newProblem()])}><Plus size={14} />Add another problem</Btn></div>}</Card>
       {!locked && <div className="flex flex-wrap gap-3 pb-6"><Btn kind="ghost" disabled={busy} onClick={() => save('draft')}>Save as Draft</Btn><Btn disabled={busy} onClick={() => save('submitted')}>Submit Daily Report</Btn></div>}
@@ -416,7 +407,7 @@ export function Records({ fixedEngineer }: { fixedEngineer?: string }) {
         <h4 className="mb-2 mt-4 text-sm font-semibold">Testing stages</h4>
         <Table head={['Stage', 'Status']}>{STAGES.map(st => <tr key={st.key}><td className="td">{st.label}</td><td className="td"><Badge v={open[`${st.key}_status`]} /></td></tr>)}</Table>
         <h4 className="mb-2 mt-4 text-sm font-semibold">Problems ({open.technical_problems?.length ?? 0})</h4>
-        {open.technical_problems?.map(p => <div key={p.id} className="mb-2 flex items-start gap-3 rounded border p-2 text-sm"><div className="flex-1"><b>{p.category}</b> <Badge v={p.severity} /> <Badge v={p.problem_status} /><p className="text-slate-600">{p.description}</p></div>{p.image_url && <SignedImg path={p.image_url} />}</div>)}</Modal>}
+        {open.technical_problems?.map(p => <div key={p.id} className="mb-2 flex items-start gap-3 rounded border p-2 text-sm"><div className="flex-1"><b>{catLabel(p)}</b> <Badge v={p.problem_status} /><p className="text-slate-600">{p.description}</p></div></div>)}</Modal>}
     </div>
   )
 }
@@ -442,16 +433,16 @@ export function Problems() {
       resolved_at: edit.problem_status === 'resolved' ? (edit.resolved_at ?? new Date().toISOString()) : null }).eq('id', edit.id)
     error ? toast(error.message, 'err') : (toast('Problem updated'), setEdit(null), load())
   }
-  const rowTone = (p: Problem) => p.problem_status === 'resolved' ? 'border-l-emerald-500' : ['critical', 'high'].includes(p.severity) ? 'border-l-red-500' : p.severity === 'medium' ? 'border-l-orange-400' : 'border-l-slate-300'
+  const rowTone = (p: Problem) => p.problem_status === 'resolved' ? 'border-l-emerald-500' : p.problem_status === 'under_investigation' ? 'border-l-orange-400' : 'border-l-red-500'
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3"><h1 className="text-xl font-semibold">{admin ? 'Technical problem tracking' : 'My reported problems'}</h1>
         <select className="inp !w-auto" value={st} onChange={e => setSt(e.target.value)}><option value="">All statuses</option>{PROBLEM_STATUSES.map(s => <option key={s.v} value={s.v}>{s.l}</option>)}</select></div>
       <Card className="!p-0">{!rows ? <Spinner /> :
-        <Table head={['ID', 'Reported', 'Engineer', 'FO', 'Series', 'Rating', 'Category', 'Description', 'Severity', 'Image', 'Status', 'Assigned to', 'Resolution remarks', 'Resolved', '']} empty={!rows.length}>
+        <Table head={['ID', 'Reported', 'Engineer', 'FO', 'Series', 'Rating', 'Category', 'Description', 'Status', 'Assigned to', 'Resolution remarks', 'Resolved', '']} empty={!rows.length}>
           {rows.map(p => <tr key={p.id} className={`border-l-4 ${rowTone(p)}`}><td className="td font-mono text-xs">{p.id.slice(0, 8)}</td><td className="td">{p.created_at.slice(0, 10)}</td><td className="td">{p.rectifier_records?.profiles?.full_name}</td>
-            <td className="td">{p.rectifier_records?.fo_number}</td><td className="td">{p.rectifier_records?.series_number}</td><td className="td">{p.rectifier_records?.rectifier_rating}</td><td className="td">{p.category}</td>
-            <td className="td max-w-xs truncate" title={p.description}>{p.description}</td><td className="td"><Badge v={p.severity} /></td><td className="td">{p.image_url && <SignedImg path={p.image_url} />}</td><td className="td"><Badge v={p.problem_status} /></td>
+            <td className="td">{p.rectifier_records?.fo_number}</td><td className="td">{p.rectifier_records?.series_number}</td><td className="td">{p.rectifier_records?.rectifier_rating}</td><td className="td">{catLabel(p)}</td>
+            <td className="td max-w-xs truncate" title={p.description}>{p.description}</td><td className="td"><Badge v={p.problem_status} /></td>
             <td className="td">{p.assigned_to}</td><td className="td max-w-[12rem] truncate">{p.resolution_remarks}</td><td className="td">{p.resolved_at?.slice(0, 10)}</td>
             <td className="td">{admin && <button className="text-brand-600 hover:underline" onClick={() => setEdit(p)}>Update</button>}</td></tr>)}</Table>}</Card>
       {edit && <Modal title="Update problem" onClose={() => setEdit(null)}><div className="space-y-3">
@@ -489,7 +480,7 @@ export function Reports() {
       const total = rs.reduce((a, r) => a + r.quantity, 0)
       setTbl({ title: type === 'daily_one' ? 'Engineer Daily Report' : 'All Engineers Daily Report', subtitle: sub,
         columns: ['Engineer', 'FO No.', 'Series No.', 'Rating', 'Qty', 'No Load', 'Short Circuit', 'Load Test', 'Functional / Program Check', 'Testing Start', 'Testing End', 'Total Test Time', 'Verified By', 'Problems', 'Remarks'],
-        rows: [...rs.map(r => [name(r), r.fo_number, r.series_number, r.rectifier_rating, r.quantity, label(r.no_load_status), label(r.short_circuit_status), label(r.load_test_status), label(r.functional_status), fmtDT(r.test_start_at), fmtDT(r.test_end_at), fmtDur(testMinutes(r)), r.verified_by ?? '', (r.technical_problems ?? []).map((p: Problem) => `${p.category} (${p.severity})`).join('; ') || 'None', r.remarks ?? '']), ['TOTAL', '', '', '', total, '', '', '', '', '', '', fmtDur(rs.reduce((a, r) => a + testMinutes(r), 0)), '', '', '']] })
+        rows: [...rs.map(r => [name(r), r.fo_number, r.series_number, r.rectifier_rating, r.quantity, label(r.no_load_status), label(r.short_circuit_status), label(r.load_test_status), label(r.functional_status), fmtDT(r.test_start_at), fmtDT(r.test_end_at), fmtDur(testMinutes(r)), r.verified_by ?? '', (r.technical_problems ?? []).map((p: Problem) => catLabel(p)).join('; ') || 'None', r.remarks ?? '']), ['TOTAL', '', '', '', total, '', '', '', '', '', '', fmtDur(rs.reduce((a, r) => a + testMinutes(r), 0)), '', '', '']] })
     } else if (type === 'utilisation') {
       const ids = [...new Set(rs.map(r => r.engineer_id))]
       setTbl({ title: 'Engineer 8-hour Work Utilisation', subtitle: sub, columns: ['Engineer', 'Records', 'Total qty', 'Sum of stage times', 'Actual testing time', '8h shift used', 'Balance of 8h'],
@@ -504,10 +495,10 @@ export function Reports() {
       setTbl({ title: 'Rating-wise Testing Report', subtitle: sub, columns: ['Rating', 'Records', 'Total qty', 'FO numbers', 'No Load done', 'Short Circuit done', 'Load done', 'Functional done', 'Fully completed', 'Failed tests'],
         rows: rt.map(k => { const x = rs.filter(r => r.rectifier_rating === k); const s = stats(x); return [k, s.records, s.qty, s.fos, s.nl, s.sc, s.lt, s.fc, x.filter(r => finalStatus(r) === 'Completed').length, s.failed] }) })
     } else {
-      const cats = [...new Set(probs.map(p => p.category))]
-      setTbl({ title: 'Problem Analysis Report', subtitle: sub, columns: ['Category', 'Total', 'Critical', 'High', 'Medium', 'Low', 'Open', 'Under investigation', 'Resolved'],
-        rows: cats.map(c => { const x = probs.filter(p => p.category === c); const n = (k: 'severity' | 'problem_status', v: string) => x.filter(p => p[k] === v).length
-          return [c, x.length, n('severity', 'critical'), n('severity', 'high'), n('severity', 'medium'), n('severity', 'low'), n('problem_status', 'open'), n('problem_status', 'under_investigation'), n('problem_status', 'resolved')] }) })
+      const cats = [...new Set(probs.map(p => catLabel(p)))]
+      setTbl({ title: 'Problem Analysis Report', subtitle: sub, columns: ['Category', 'Total', 'Open', 'Under investigation', 'Resolved'],
+        rows: cats.map(c => { const x = probs.filter(p => catLabel(p) === c); const n = (v: string) => x.filter(p => p.problem_status === v).length
+          return [c, x.length, n('open'), n('under_investigation'), n('resolved')] }) })
     }
   }
   return (
@@ -548,12 +539,6 @@ export function Settings() {
       <Card title="Manager registration code"><p className="mb-3 text-sm text-slate-600">New managers need this code on the sign-up page. Change it after your managers have registered.</p>
         <div className="flex gap-2"><input className="inp" value={mcode} onChange={e => setMcode(e.target.value)} />
           <Btn onClick={async () => mcode.trim().length < 6 ? toast('Use at least 6 characters', 'err') : done((await supabase.from('app_settings').upsert({ key: 'manager_signup_code', value: mcode.trim() })).error, 'Registration code saved')}>Save</Btn></div></Card>
-      <Card title="Rectifier rating options">
-        <div className="mb-3 flex gap-2"><input className="inp" placeholder="e.g. 48V 2000A" value={name} onChange={e => setName(e.target.value)} />
-          <Btn onClick={async () => { if (!name.trim()) return; done((await supabase.from('rating_options').insert({ rating_name: name.trim() })).error, 'Rating added'); setName('') }}>Add</Btn></div>
-        <div className="flex flex-wrap gap-2">{ratings.map(r => <button key={r.id} onClick={async () => done((await supabase.from('rating_options').update({ is_active: !r.is_active }).eq('id', r.id)).error, 'Rating updated')}
-          className={`rounded-full border px-3 py-1 text-sm ${r.is_active ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-300 text-slate-400 line-through'}`}>{r.rating_name}</button>)}</div>
-        <p className="mt-2 text-xs text-slate-500">Click a rating to hide or show it in the entry form.</p></Card>
       <Card title="Audit trail (latest 50 changes)" className="!p-0"><Table head={['When', 'Action', 'Table', 'Record', 'Changed by', 'Change']} empty={!logs.length}>
         {logs.map(l => <tr key={l.id}><td className="td">{new Date(l.created_at).toLocaleString()}</td><td className="td">{l.action}</td><td className="td">{l.table_name}</td><td className="td font-mono text-xs">{String(l.record_id).slice(0, 8)}</td><td className="td font-mono text-xs">{String(l.user_id).slice(0, 8)}</td>
           <td className="td max-w-md truncate text-xs" title={JSON.stringify(l.new_data)}>{l.action === 'UPDATE' ? Object.keys(l.new_data).filter(k => JSON.stringify(l.new_data[k]) !== JSON.stringify(l.old_data[k]) && k !== 'updated_at').map(k => `${k}: ${l.old_data[k]} → ${l.new_data[k]}`).join(', ') : ''}</td></tr>)}</Table></Card>
