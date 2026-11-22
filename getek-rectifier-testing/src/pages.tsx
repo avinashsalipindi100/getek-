@@ -15,7 +15,7 @@ const FN_CREATE_ENGINEER = 'engineer'
 
 export function Login({ recovery, onDone }: { recovery: boolean; onDone: () => void }) {
   const [role, setRole] = useState<Role>('engineer'); const [signup, setSignup] = useState(false)
-  const [f, setF] = useState({ name: '', email: '', pw: '', code: '' }); const [busy, setBusy] = useState(false)
+  const [f, setF] = useState({ name: '', email: '', pw: '' }); const [busy, setBusy] = useState(false)
   const set = (k: string, v: string) => setF(s => ({ ...s, [k]: v }))
   const field = (k: keyof typeof f, l: string, type = 'text') => <div><label className="lbl">{l}</label><input className="inp" type={type} required value={f[k]} onChange={e => set(k, e.target.value)} /></div>
 
@@ -33,7 +33,7 @@ export function Login({ recovery, onDone }: { recovery: boolean; onDone: () => v
         if (f.pw.length < 8) return toast('Use at least 8 characters', 'err')
         const { error } = await supabase.auth.updateUser({ password: f.pw }); if (error) return toast(error.message, 'err'); toast('Password updated'); onDone()
       } else if (signup) {
-        const { data, error } = await supabase.functions.invoke(FN_MANAGER_SIGNUP, { body: { full_name: f.name, email: f.email.trim(), password: f.pw, code: f.code } })
+        const { data, error } = await supabase.functions.invoke(FN_MANAGER_SIGNUP, { body: { full_name: f.name, email: f.email.trim(), password: f.pw } })
         if (error || data?.error) return toast(data?.error ?? error?.message ?? 'Sign-up failed', 'err')
         toast('Manager account created'); await signIn()
       } else await signIn()
@@ -64,7 +64,7 @@ export function Login({ recovery, onDone }: { recovery: boolean; onDone: () => v
               <button type="button" key={r} onClick={() => { setRole(r); if (r === 'engineer') setSignup(false) }} className={`flex items-center justify-center gap-2 rounded py-2 text-sm font-medium transition-colors ${role === r ? 'bg-white text-brand-900 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}><I size={15} />{l}</button>)}</div>
             <h2 className="pt-1 text-lg font-semibold text-slate-900">{signup ? 'Create manager account' : `${role === 'admin' ? 'Manager' : 'Engineer'} sign in`}</h2>
             {signup && field('name', 'Full name')}{field('email', 'Email', 'email')}{field('pw', 'Password', 'password')}
-            {signup && <div>{field('code', 'Manager registration code', 'password')}<p className="mt-1 text-xs text-slate-500">Ask your company administrator for this code.</p></div>}</>}
+            </>}
           <Btn className="w-full" disabled={busy}>{recovery ? 'Save new password' : signup ? 'Create account' : 'Sign in'}</Btn>
           {!recovery && <div className="flex justify-between text-xs text-brand-600">
             <button type="button" className="hover:underline" onClick={() => f.email ? supabase.auth.resetPasswordForEmail(f.email.trim(), { redirectTo: window.location.origin }).then(r => r.error ? toast(r.error.message, 'err') : toast('Reset link sent. Check your email.')) : toast('Enter your email first', 'err')}>Forgot password?</button>
@@ -526,12 +526,13 @@ export function Reports() {
 // ===== Settings =====
 
 export function Settings() {
+  const { profile } = useAuth(); const hoursKey = `edit_window_hours_${profile.id}`
   const [ratings, setRatings] = useState<{ id: string; rating_name: string; is_active: boolean }[]>([]); const [name, setName] = useState('')
-  const [hours, setHours] = useState('24'); const [mcode, setMcode] = useState(''); const [logs, setLogs] = useState<any[]>([])
+  const [hours, setHours] = useState('24'); const [logs, setLogs] = useState<any[]>([])
   const load = useCallback(async () => {
-    const [r, s, mc, a] = await Promise.all([supabase.from('rating_options').select('*').order('rating_name'), supabase.from('app_settings').select('value').eq('key', 'edit_window_hours').single(), supabase.from('app_settings').select('value').eq('key', 'manager_signup_code').single(),
+    const [r, s, a] = await Promise.all([supabase.from('rating_options').select('*').order('rating_name'), supabase.from('app_settings').select('key, value').in('key', ['edit_window_hours', hoursKey]),
       supabase.from('audit_logs').select('*').order('created_at', { ascending: false }).limit(50)])
-    setRatings(r.data ?? []); if (mc.data) setMcode(mc.data.value); if (s.data) setHours(s.data.value); setLogs(a.data ?? [])
+    setRatings(r.data ?? []); if (s.data?.length) setHours((s.data.find(x => x.key === hoursKey) ?? s.data[0]).value); setLogs(a.data ?? [])
   }, [])
   useEffect(() => { load() }, [load])
   const done = (error: any, ok: string) => error ? toast(error.message, 'err') : (toast(ok), load())
@@ -540,10 +541,7 @@ export function Settings() {
       <h1 className="text-xl font-semibold">Settings</h1>
       <Card title="Engineer editing period"><p className="mb-3 text-sm text-slate-600">After submitting, engineers can edit their own report for this many hours. Drafts stay editable.</p>
         <div className="flex gap-2"><input className="inp !w-28" type="number" min={0} value={hours} onChange={e => setHours(e.target.value)} />
-          <Btn onClick={async () => done((await supabase.from('app_settings').update({ value: String(Math.max(0, +hours || 0)) }).eq('key', 'edit_window_hours')).error, 'Editing period saved')}>Save</Btn></div></Card>
-      <Card title="Manager registration code"><p className="mb-3 text-sm text-slate-600">New managers need this code on the sign-up page. Change it after your managers have registered.</p>
-        <div className="flex gap-2"><input className="inp" value={mcode} onChange={e => setMcode(e.target.value)} />
-          <Btn onClick={async () => mcode.trim().length < 6 ? toast('Use at least 6 characters', 'err') : done((await supabase.from('app_settings').upsert({ key: 'manager_signup_code', value: mcode.trim() })).error, 'Registration code saved')}>Save</Btn></div></Card>
+          <Btn onClick={async () => done((await supabase.from('app_settings').upsert({ key: hoursKey, value: String(Math.max(0, +hours || 0)) })).error, 'Editing period saved')}>Save</Btn></div></Card>
       <Card title="Audit trail (latest 50 changes)" className="!p-0"><Table head={['When', 'Action', 'Table', 'Record', 'Changed by', 'Change']} empty={!logs.length}>
         {logs.map(l => <tr key={l.id}><td className="td">{new Date(l.created_at).toLocaleString()}</td><td className="td">{l.action}</td><td className="td">{l.table_name}</td><td className="td font-mono text-xs">{String(l.record_id).slice(0, 8)}</td><td className="td font-mono text-xs">{String(l.user_id).slice(0, 8)}</td>
           <td className="td max-w-md truncate text-xs" title={JSON.stringify(l.new_data)}>{l.action === 'UPDATE' ? Object.keys(l.new_data).filter(k => JSON.stringify(l.new_data[k]) !== JSON.stringify(l.old_data[k]) && k !== 'updated_at').map(k => `${k}: ${l.old_data[k]} → ${l.new_data[k]}`).join(', ') : ''}</td></tr>)}</Table></Card>
