@@ -264,15 +264,16 @@ export function ReportForm() {
   const { profile } = useAuth(); const { id } = useParams(); const nav = useNavigate()
   const [f, setF] = useState<any>(blank)
   const [hasProblem, setHasProblem] = useState(false); const [problems, setProblems] = useState<P[]>([])
-  const [dup, setDup] = useState(''); const [busy, setBusy] = useState(false); const [ready, setReady] = useState(!id); const [locked, setLocked] = useState(false)
+  const [engName, setEngName] = useState(''); const [dup, setDup] = useState(''); const [busy, setBusy] = useState(false); const [ready, setReady] = useState(!id); const [locked, setLocked] = useState(false)
   const set = (k: string, v: any) => setF((s: any) => ({ ...s, [k]: v }))
 
   useEffect(() => {
     if (!id) return
-    supabase.from('rectifier_records').select('*, technical_problems(*)').eq('id', id).single().then(({ data, error }) => {
+    supabase.from('rectifier_records').select('*, technical_problems(*), profiles:engineer_id(full_name)').eq('id', id).single().then(({ data, error }) => {
       if (error || !data) { toast('Record not found', 'err'); return nav('/') }
-      const { technical_problems, ...rec } = data as any
-      setF(normTimes(rec)); setProblems(technical_problems); setHasProblem(technical_problems.length > 0); setReady(true)
+      const { technical_problems, profiles, ...rec } = data as any
+      setEngName(profiles?.full_name ?? '')
+      setF(normTimes({ ...blank, ...rec, rectifier_rating: rec.rectifier_rating ?? '' })); setProblems(technical_problems); setHasProblem(technical_problems.length > 0); setReady(true)
       setLocked(rec.engineer_id !== profile.id && profile.role !== 'admin')
     })
   }, [id])
@@ -321,7 +322,7 @@ export function ReportForm() {
       <h1 className="text-xl font-semibold">{id ? 'Edit testing report' : 'New testing report'}</h1>
       <Card title="Product information"><div className="grid gap-3 sm:grid-cols-2">
         <div><label className="lbl">Date</label><input className="inp bg-slate-50" type="date" value={f.testing_date} readOnly={!!id} onChange={e => set('testing_date', e.target.value)} /></div>
-        <div><label className="lbl">Engineer</label><input className="inp bg-slate-50" value={profile.full_name} readOnly /></div>
+        <div><label className="lbl">Engineer</label><input className="inp bg-slate-50" value={id ? engName : profile.full_name} readOnly /></div>
         <div><label className="lbl">FO number (company order no.) *</label><input className="inp" value={f.fo_number} onChange={e => set('fo_number', e.target.value)} onBlur={checkDup} /></div>
         <div><label className="lbl">Series number *</label><input className="inp" value={f.series_number} onChange={e => set('series_number', e.target.value)} onBlur={checkDup} /></div>
         {dup && <p className="rounded bg-amber-100 p-2 text-sm text-amber-900 sm:col-span-2">Duplicate warning: {dup} You can still save if this is intended.</p>}
